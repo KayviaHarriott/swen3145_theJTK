@@ -31,6 +31,8 @@ enum BlockStatus {BLOCKED, UNBLOCKED}
 --!     Add attributes to represent the rest of the player's profile data
 --!     add representations for message states (unseen, seen)
 --!     add different types of notifications (As suggested from Ourvle QNA)
+--!     model NOW with reflexive association on the DateTime Class
+--!     no plays in the future
 --!
 --!     DESIGN PATTERN REFINEMENTS
 --!         Observer Pattern
@@ -68,79 +70,121 @@ attributes
     id: String
 end -- Identifiable
 
---from Class
-class Date
+class DateTime
 attributes
+    -- Initialized to this system's eposh time 1900-01-01 00:00:00
     day: Integer init: 1
     month: Integer init: 1
     year: Integer init: 1900
+    hour: Integer init: 0
+    minute: Integer init: 0
+    second: Integer init: 0
 operations
-    initialise(d: Integer, m: Integer, y: Integer)
+    initialise(d: Integer, m: Integer, y: Integer,
+    hr: Integer, min: Integer, sec: Integer)
     begin
-        self.day := d;
-        self.month := m;
         self.year := y;
+        self.month := m;
+        self.day := d;
+        self.hour := hr;
+        self.minute := min;
+        self.second := sec;
     end
 
-    pre parametersHaveValidValues: isValid(d, m, y)
+    pre parametersHaveValidValues: isValid(d, m, y, hr, min, sec)
     post attributesCorrectlyUpdated:
-        day = d and month = m and year = y
+        day = d and month = m and year = y and
+        hour = hr and minute = min and second = sec
 
-    -- Accessors
+    ---------------------------------Accessors--------------------------------
+
     getDay(): Integer = day
     getMonth(): Integer = month
     getYear(): Integer = year
 
-    -- Mutators
+    getHour(): Integer = hour
+    getMinute(): Integer = minute
+    getSecond(): Integer = second
+
+    ---------------------------------Mutators---------------------------------
+
     setDay(d: Integer)
     begin self.day := d; end
-    pre newDateIsValid: isValid(d, month, year)
+    pre newDateIsValid: isValid(d, month, year, hour, minute, second)
     post dayCorrectlyUpdated: day = d
 
     setMonth(m: Integer)
     begin self.month := m; end
-    pre newDateIsValid: isValid(day, m, year)
+    pre newDateIsValid: isValid(day, m, year, hour, minute, second)
     post monthCorrectlyUpdated: month = m
 
     setYear(y: Integer)
     begin self.year := y; end
-    pre newDateIsValid: isValid(day, month, y)
+    pre newDateIsValid: isValid(day, month, y, hour, minute, second)
     post yearCorrectlyUpdated: year = y
 
+    setHour(h: Integer)
+    begin self.hour := h; end
+    pre newDateIsValid: isValid(day, month, year, h, minute, second)
+    post mutationSuccess: hour = h
+
+    setMinute(m: Integer)
+    begin self.minute := m; end
+    pre newDateIsValid: isValid(day, month, year, hour, m, second)
+    post mutationSuccess: minute = m
+
+    setSecond(s: Integer)
+    begin self.second := s; end
+    pre newDateIsValid: isValid(day, month, year, hour, minute, s)
+    post mutationSuccess: second = s
+
+    --------------------------------Predicates--------------------------------
+
     -- returns true if all the attributes are not null, false otherwise
-    isInitialised(): Boolean = day <> null and month <> null and
-        year <> null
+    isInitialised(): Boolean =
+        day <> null and month <> null and year <> null and
+        hour <> null and minute <> null and second <> null
     post returnValueIsAccurate:
         result = Set{day <> null, month <> null, year <> null}
             ->forAll(t | t = true)
 
     -- returns true if self is before d, false otherwise
-    before(d: Date): Boolean = ((year < d.year) or
+    before(d: DateTime): Boolean = (year < d.year) or
         (year = d.year and month < d.month) or
-        (year = d.year and month = d.month and day < d.day))
+        (year = d.year and month = d.month and day < d.day) or
+        (year = d.year and month = d.month and day = d.day and
+            hour < d.hour) or
+        (year = d.year and month = d.month and day = d.day and
+            hour = d.hour and minute < d.minute) or
+        (year = d.year and month = d.month and day = d.day and
+            hour = d.hour and minute = d.minute and second < d.second)
     pre bothAreInitialised: isInitialised() and d.isInitialised()
-    pre bothAreValid: isValid(day, month, year) and
-        isValid(d.day, d.month, d.year)
-    post returnValueIsAccurate:
-        result = ((year < d.year) or
-            (year = d.year and month < d.month) or
-            (year = d.year and month = d.month and day < d.day)) = true
+    pre bothAreValid: isSelfValid() and d.isSelfValid()
+    post returnValueIsAccurate: result =
+        ((year < d.year) or
+        (year = d.year and month < d.month) or
+        (year = d.year and month = d.month and day < d.day) or
+        (year = d.year and month = d.month and day = d.day and
+            hour < d.hour) or
+        (year = d.year and month = d.month and day = d.day and
+            hour = d.hour and minute < d.minute) or
+        (year = d.year and month = d.month and day = d.day and
+            hour = d.hour and minute = d.minute and second < d.second)) -- = true
 
     -- returns true if self has the same values as d, false otherwise
-    equals(d: Date): Boolean = day = d.day and month = d.month and
-        year = d.year
+    equals(d: DateTime): Boolean =
+        day = d.day and month = d.month and year = d.year and
+        hour = d.hour and minute = d.minute and second = d.second
     pre bothAreInitialised: isInitialised() and d.isInitialised()
-    pre bothAreValid: isValid(day, month, year) and
-        isValid(d.day, d.month, d.year)
+    pre bothAreValid: isSelfValid() and d.isSelfValid()
     post returnValueConditions:
         result = Set{day = d.day, month = d.month, year = d.year}
             ->forAll(t | t = true)
 
     -- returns true if self is after d, false otherwise
-    after(d: Date): Boolean = (not equals(d)) and (not before(d))
+    after(d: DateTime): Boolean = (not equals(d)) and (not before(d))
     pre bothAreInitialised: isInitialised() and d.isInitialised()
-    pre bothAreValid: isValid(day, month, year) and
-        isValid(d.day, d.month, d.year)
+    pre bothAreValid: isSelfValid() and d.isSelfValid()
     post returnValueIsAccurate:
         result = Set{not equals(d), not before(d)}->forAll(t | t = true)
 
@@ -153,15 +197,27 @@ operations
             endif
     pre yearIsValid: y <> null and y > 1900
     post returnValueIsAccurate: result = (y.mod(400) = 0 or
-        (y.mod(100) > 0 and y.mod(4) = 0)) = true
+        (y.mod(100) > 0 and y.mod(4) = 0)) -- = true
+
+    secondValid(v: Integer): Boolean = v >= 0 and v < 60
+    pre paramaterNotNull: v <> null
+    post returnValueIsAccurate: result = (v >= 0 and v < 60)
+
+    minuteValid(v: Integer): Boolean = v >= 0 and v <= 59
+    pre paramaterNotNull: v <> null
+    post returnValueIsAccurate: result = (v >= 0 and v <= 59)
+
+    hourValid(v: Integer): Boolean = v >= 0 and v < 24
+    pre paramaterNotNull: v <> null
+    post returnValueIsAccurate: result = (v >= 0 and v < 24)
 
     dayValid(v: Integer): Boolean = v >= 1 and v <= 31
     pre paramaterNotNull: v <> null
-    post returnValueIsAccurate: result = v >= 1 and v <= 31
+    post returnValueIsAccurate: result = (v >= 1 and v <= 31)
 
     monthValid(v: Integer): Boolean = v >= 1 and v <= 12
     pre paramaterNotNull: v <> null
-    post returnValueIsAccurate: result = v >= 1 and v <= 12
+    post returnValueIsAccurate: result = (v >= 1 and v <= 12)
 
     yearValid(v: Integer): Boolean = v > 1900
     pre paramaterNotNull: v <> null
@@ -173,8 +229,8 @@ operations
     pre dayIsValid: dayValid(d)
     pre monthIsValid: monthValid(m)
     post returnValueIsAccurate: result =
-        (Set{4, 6, 9, 11}->includes(m) implies d < 31) and
-        (Set{1, 3, 5, 7, 8, 10, 12}->includes(m) implies d < 32)
+        ((Set{4, 6, 9, 11}->includes(m) implies d < 31) and
+        (Set{1, 3, 5, 7, 8, 10, 12}->includes(m) implies d < 32))
 
     febValid(d: Integer, y: Integer): Boolean =
         (isLeapYear(y) implies d <= 29) and
@@ -182,19 +238,169 @@ operations
     pre dayIsValid: dayValid(d)
     pre yearIsValid: yearValid(y)
     post returnValueIsAccurate: result =
-        (isLeapYear(y) implies d <= 29) and
-        (not isLeapYear(y) implies d <= 28)
+        ((isLeapYear(y) implies d <= 29) and
+        (not isLeapYear(y) implies d <= 28))
 
-    isValid(d: Integer, m: Integer, y: Integer): Boolean =
+    isValid(d: Integer, m: Integer, y: Integer,
+    hr: Integer, min: Integer, sec: Integer): Boolean =
         dayValid(d) and monthValid(m) and yearValid(y) and
-        dayAndMonthValid(d, m) and (m = 2 implies febValid(d, y))
-end -- Date Class
+        dayAndMonthValid(d, m) and (m = 2 implies febValid(d, y)) and
+        hourValid(hr) and minuteValid(min) and secondValid(sec)
+
+    isSelfValid(): Boolean = isValid(day, month, year, hour, minute, second)
+end -- DateTime Class
+
+class Period
+operations
+    --------------------------------Predicates--------------------------------
+
+    -- Returns true if the period has a start date or has a start and end date
+    -- and the start date is before the end date
+    isValid(startDate: DateTime, endDate: DateTime): Boolean =
+        startDate <> null and startDate.isInitialised() and
+        (endDate <> null implies startDate.before(endDate))
+    pre startDateValid: startDate <> null implies startDate.isSelfValid()
+    pre endDateValid: endDate <> null implies endDate.isSelfValid()
+    post resultIsCorrect: result = (startDate <> null and
+        startDate.isInitialised() and
+        (endDate <> null implies startDate.before(endDate)))
+
+    -- Returns true if the current period is valid
+    isSelfValid(): Boolean = isValid(getStart(), getEnd())
+
+    -- Returns true if the end date for the current period is before the start
+    -- date of the period passed as an argument
+    before(p: Period): Boolean = getEnd().before(p.getStart())
+    pre selfAndArgsAreValid: isSelfValid() and p.isSelfValid()
+    post noMutations: interval = interval@pre and  p.interval = p.interval@pre
+    post resultIsCorrect: result = getEnd().before(p.getStart())
+
+    -- Returns true if the start date for the current period is after the end
+    -- date of the period passed as an argument
+    after(p: Period): Boolean = getStart().after(p.getEnd())
+    pre selfAndArgsAreValid: isSelfValid() and p.isSelfValid()
+    post noMutations: interval = interval@pre and  p.interval = p.interval@pre
+    post resultIsCorrect: result = getStart().after(p.getEnd())
+
+    -- Returns true if the start and end of both periods is equal
+    equals(p:Period): Boolean = getStart().equals(p.getStart()) and
+        getEnd().equals(p.getEnd())
+    pre selfAndArgsAreValid: isSelfValid() and p.isSelfValid()
+    post noMutations: interval = interval@pre and  p.interval = p.interval@pre
+    post resultIsCorrect: result = (getStart().equals(p.getStart()) and
+        getEnd().equals(p.getEnd()))
+
+    -- Returns true if the current period starts before and ends after
+    -- the period passed as an argument
+    contains(p: Period): Boolean = containsDate(p.getStart()) and
+        containsDate(p.getEnd())
+    pre selfAndArgsAreValid: isSelfValid() and p.isSelfValid()
+    post noMutations: interval = interval@pre and  p.interval = p.interval@pre
+    post resultIsCorrect: result = (containsDate(p.getStart()) and
+        containsDate(p.getEnd()))
+
+    -- Returns true if the end date for the current period falls within the
+    -- range of the period passed as an argument and the start date doesn't
+    overlapsOnLeftOf(p: Period): Boolean =
+        getStart().before(p.getStart()) and p.containsDate(getEnd())
+    pre selfAndArgsAreValid: isSelfValid() and p.isSelfValid()
+    post noMutations: interval = interval@pre and  p.interval = p.interval@pre
+    post resultIsCorrect: result = (getStart().before(p.getStart()) and
+        p.containsDate(getEnd()))
+
+    -- Returns true if the start date for the current period falls within the
+    -- range of the period passed as an argument and the end date doesn't
+    overlapsOnRightOf(p: Period): Boolean =
+        p.containsDate(getStart()) and getEnd().after(p.getEnd())
+    pre selfAndArgsAreValid: isSelfValid() and p.isSelfValid()
+    post noMutations: interval = interval@pre and  p.interval = p.interval@pre
+    post resultIsCorrect: result = (p.containsDate(getStart()) and
+        getEnd().after(p.getEnd()))
+
+    -- Returns true if the current period starts before and ends after
+    -- the period passed as an argument
+    containsDate(d: DateTime): Boolean = getStart().before(d) and
+        (getEnd() <> null implies getEnd().after(d))
+    pre selfAndArgsAreValid: isSelfValid() and d.isSelfValid()
+    post noMutations: interval = interval@pre and  d = d@pre
+    post resultIsCorrect: result = (getStart().before(d) and
+        (getEnd() <> null implies getEnd().after(d)))
+
+    ---------------------------------Accessors--------------------------------
+
+    -- Returns the start date of the period
+    getStart(): DateTime = interval->at(1)
+    post noMutations: interval = interval@pre
+    post resultIsCorrect: result = interval->at(1)
+
+    -- Returns the end date of the period
+    getEnd(): DateTime = interval->at(2)
+    post noMutations: interval = interval@pre
+    post resultIsCorrect: result = interval->at(2)
+
+    ---------------------------------Mutators---------------------------------
+
+    -- Adds a start date if no dates are assigned to the period
+    addStart(s: DateTime)
+    begin insert (self, s) into PeriodInterval; end
+    pre selfNotInit: getStart() = null and getEnd() = null
+    pre argIsValid: s.isSelfValid()
+    post mutationSuccess: getStart() = s and getEnd() = interval@pre->at(2)
+    post selfIsValid: isSelfValid()
+
+    -- Adds an end date if a start date is specified
+    addEnd(s: DateTime)
+    begin insert (self, s) into PeriodInterval; end
+    pre selfAndArgsAreValid: isSelfValid() and s.isSelfValid()
+    post mutationSuccess: getStart() = interval@pre->at(1) and getEnd() = s
+    post selfStillValid: isValid(getStart(), getEnd())
+
+    -- Removes start date if no end date is specified
+    removeStart()
+    begin delete (self, getStart()) from PeriodInterval end
+    pre selfIsValid: isSelfValid()
+    post selfNotInit: getStart() = null and getEnd() = null
+
+    -- Removes the end date
+    removeEnd()
+    begin delete (self, getEnd()) from PeriodInterval end
+    pre selfIsValid: isSelfValid()
+    post mutationSuccess: getStart() = interval@pre->at(1) and getEnd() = null
+
+    -- Replaces start date with the new date
+    replaceStart(s: DateTime)
+    begin
+        declare endDate: DateTime;
+        endDate := getEnd();
+        delete (self, getStart()) from PeriodInterval;
+        delete (self, endDate) from PeriodInterval;
+
+        insert (self, s) into PeriodInterval;
+        insert (self, endDate) into PeriodInterval;
+    end
+
+    pre selfAndArgsAreValid: isSelfValid() and s.isSelfValid()
+    post mutationSuccess: getStart() = s and getEnd() = interval@pre->at(2)
+    post selfStillValid: isValid(getStart(), getEnd())
+
+    -- Replaces the end date with the new date
+    replaceEnd(s: DateTime)
+    begin
+        delete (self, getEnd()) from PeriodInterval;
+        insert (self, s) into PeriodInterval;
+    end
+
+    pre argIsValid: s.isSelfValid()
+    pre selfIsValid: isSelfValid()
+    post mutationSuccess: getStart() = interval@pre->at(1) and getEnd() = s
+    post selfStillValid: isValid(getStart(), getEnd())
+end -- Period Class
 
 class Player < Identifiable
 attributes
     username: String
     email: String
-    dob: Date
+    dob: DateTime
     score: Integer -- derived
     status: PlayerStatus
     state: ProfileState
@@ -203,7 +409,7 @@ end -- Player Class
 class Message < Identifiable
 attributes
     message: String
-    date: Date --should be time
+    date: DateTime --should be time
 end -- Message Class
 
 class Chat
@@ -212,9 +418,8 @@ end -- Chat Class
 class Request < Identifiable
 attributes
     status: RequestStatus init: #PENDING
-    sentDate: Date
-    addressedDate: Date
-    recindedDate: Date
+    sentDate: DateTime
+    activePeriod: Period
     type: RequestType
 end -- Request Class
 
@@ -229,7 +434,7 @@ between
     Player[*] role player
     Player[*] role blocked
 attributes
-    date: Date
+    date: DateTime
     status: BlockStatus
 end -- Block Association Class
 
@@ -290,7 +495,7 @@ attributes
     type: MatchType
     timed: Boolean
     time: Integer -- Elapsed seconds
-    date: Date
+    date: DateTime
     category: Category
     status: MatchStatus
 end -- Match Class
@@ -307,6 +512,17 @@ attributes
 end -- Rank Association Class
 
 ---------------Associations---------------
+
+association currentDate between
+    DateTime[*]
+    DateTime[0..1] role today
+end -- currentDate Association
+
+association PeriodInterval between
+    Period[*]
+    DateTime[0..2] role interval ordered
+end -- interval Association
+
 
 composition PlayerChat between
     Chat[1] role chat
@@ -429,9 +645,14 @@ context Identifiable
         i1 <> i2 implies i1.id <> i2.id)
 -- End Identifiable Constraints
 
-context Date
-    inv dateIsValid: isValid(day, month, year)
--- End Date Constraints
+context DateTime
+    inv dateIsValid: isSelfValid()
+-- End DateTime Constraints
+
+context Period
+    -- All Periods are valid
+    inv allPeriodsAreValid: isSelfValid()
+-- End Period Constraints
 
 context Player
     -- Each Player has a unique username
@@ -461,13 +682,13 @@ context Player
     -- Cannot send requests to yourself
     inv noSelfRequests: sentReqs.reqRcvr->excludes(self)
 
-    -- Can't exchange requests with blocked players
-    inv noRequestExchangeWithBlockedPlayers:
+    -- All pending requests from players you block become lost and requests
+    -- sent to them become recinded
+    inv noPendingRequestsWithBlockedPlayers:
         block[player]->select(b | b.status = #BLOCKED)->forAll(b |
-            sentReqs->union(rcvdReqs)->forAll(req |
-                (Set{req.reqSender, req.reqRcvr}->includes(b.blocked) and
-                req.sentDate.after(b.date)) implies req.status = #LOST
-        ))
+            not sentReqs->union(rcvdReqs)->exists(req |
+                Set{req.reqSender, req.reqRcvr}->includes(b.blocked) and
+                req.status = #PENDING))
 
     -- Players must not encounter players they have blocked in any match
     inv noMatchesWithBlockedPlayers:
@@ -527,12 +748,7 @@ context Player
             matchReqs = allReqs->select(req | req.type = #MATCH)
         in matchReqs->forAll(mr | frReqs->exists(fr |
             Set{fr.reqSender, fr.reqRcvr} = Set{mr.reqSender, mr.reqRcvr} and
-                ((fr.status = #ACCEPTED and
-                    mr.sentDate.after(fr.addressedDate)) or
-                (fr.status = #RECINDED and
-                    mr.sentDate.after(fr.addressedDate) and
-                    mr.sentDate.before(fr.recindedDate))
-                )
+                fr.activePeriod.containsDate(mr.sentDate)
         ))
 
     -- Can only chat if one player has accepted a message or friend request
@@ -545,12 +761,7 @@ context Player
                 Set{#ACCEPTED, #RECINDED}->includes(req.status))
         in rcvdMsgs->forAll(m | frAndMsgReqs->exists(req |
             Set{req.reqSender, req.reqRcvr} = Set{m.msgSender, m.msgRcvr} and
-                ((req.status = #ACCEPTED and
-                    m.date.after(req.addressedDate)) or
-                (req.status = #RECINDED and
-                    m.date.after(req.addressedDate) and
-                    m.date.before(req.recindedDate))
-                )
+                req.activePeriod.containsDate(m.date)
         ))
 
     -- players in match must have status in game
@@ -586,7 +797,7 @@ context Chat
 
 context Message
     -- Each message must have a date
-    inv hasDate: date.oclIsKindOf(Date)
+    inv hasDate: date.oclIsKindOf(DateTime)
 
     -- Messages must have a body
     inv noEmptyMsgs: message.size() > 0
@@ -594,7 +805,11 @@ context Message
 
 context Request
     -- Each request must have a sent date
-    inv hasSentDate: sentDate.oclIsKindOf(Date)
+    inv hasSentDate: sentDate.oclIsKindOf(DateTime)
+
+    -- Each request has an active period that starts after it was sent
+    inv validActivePeriod: activePeriod.oclIsKindOf(Period) implies
+        sentDate.before(activePeriod.getStart())
 
     -- For each type of request, ther can only be one pending request between
     -- each unique pair of players.
@@ -625,8 +840,9 @@ context MatchRequest
     inv noRankedMatchRequests: matchType <> #RANKED
 
     -- Accepted match type must match requested match type
-    inv matchTypeMatchesRequestedMatchType: status = #ACCEPTED implies
-        ((matchType = match.type) and (timed = match.timed))
+    inv matchDataMatchesMatchReqData: status = #ACCEPTED implies
+        (matchType = match.type and activePeriod.oclIsTypeOf(Period) and
+        timed = match.timed and activePeriod.getStart() = match.date)
 -- End MatchRequest Constraints
 
 context Play
@@ -930,7 +1146,7 @@ context Dictionary
 
 context Match
     -- Each match must have a date
-    inv hasDate: date.oclIsKindOf(Date)
+    inv hasDate: date.oclIsKindOf(DateTime)
 
     -- Only unranked matches may be untimed
     inv noUntimedRankedMatches: (type = #RANKED) implies timed
