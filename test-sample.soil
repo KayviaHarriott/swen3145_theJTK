@@ -15,6 +15,8 @@ reset
 
 !new Leaderboard('lboard')
 
+!new Dictionary('dict')
+
 !new Player('player1')
 !player1.id := 'player1'
 !player1.username := 'TestUser1'
@@ -39,21 +41,21 @@ reset
 
 --------Friend Request between Players 1 and 2
 
-!new Date('frReq1SentDate')
-!frReq1SentDate.day := 20
-!frReq1SentDate.month := 10
-!frReq1SentDate.year := 2021
+!new DateTime('frReq1SentDate')
+!frReq1SentDate.initialise(20, 10, 2021, 18, 05, 13)
 
-!new Date('frReq1AddrDate')
-!frReq1AddrDate.day := 21
-!frReq1AddrDate.month := 10
-!frReq1AddrDate.year := 2021
+!new DateTime('frReq1AddrDate')
+!frReq1AddrDate.initialise(21, 10, 2021, 6, 05, 21)
+
+!new Period('frReq1Period')
+!frReq1Period.addStart(frReq1AddrDate)
 
 !new Request('frReq1P1P2')
 !frReq1P1P2.id := 'frReq1'
 !frReq1P1P2.type := #FRIEND
 !frReq1P1P2.status := #ACCEPTED
 !frReq1P1P2.sentDate := frReq1SentDate
+!frReq1P1P2.activePeriod := frReq1Period
 !frReq1P1P2.addressedDate := frReq1AddrDate
 !insert (player1,frReq1P1P2) into SentRequest
 !insert (player2,frReq1P1P2) into RecievedRequest
@@ -64,10 +66,8 @@ reset
 !insert (chatp1p2,player1) into ChatRooms
 !insert (chatp1p2,player2) into ChatRooms
 
-!new Date('msg1Date')
-!msg1Date.day := 22
-!msg1Date.month := 10
-!msg1Date.year := 2021
+!new DateTime('msg1Date')
+!msg1Date.initialise(22, 10, 2021, 12, 35, 06)
 
 !new Message('msg1p1p2')
 !msg1p1p2.id := 'msg1'
@@ -77,10 +77,8 @@ reset
 !insert (player1,msg1p1p2) into RecievedMessage
 !insert (player2,msg1p1p2) into SentMessage
 
-!new Date('msg2Date')
-!msg2Date.day := 23
-!msg2Date.month := 10
-!msg2Date.year := 2021
+!new DateTime('msg2Date')
+!msg2Date.initialise(22, 10, 2021, 12, 35, 45)
 
 !new Message('msg2p1p2')
 !msg2p1p2.id := 'msg2'
@@ -92,14 +90,19 @@ reset
 
 --------Match Request between Players 1 and 2
 
-!new Date('matchReq1SentDate')
-!matchReq1SentDate.day := 22
-!matchReq1SentDate.month := 10
-!matchReq1SentDate.year := 2021
+!new DateTime('matchReq1SentDate')
+!matchReq1SentDate.initialise(22, 10, 2021, 12, 36, 12)
+
+!new DateTime('matchReq1AddrDate')
+!matchReq1AddrDate.initialise(22, 10, 2021, 12, 37, 21)
+
+!new Period('matchReq1Period')
+!matchReq1Period.addStart(matchReq1AddrDate)
 
 !new MatchRequest('matchReq1')
 !matchReq1.id := 'matchReq1'
 !matchReq1.sentDate := matchReq1SentDate
+!matchReq1.activePeriod := matchReq1Period
 !matchReq1.type := #MATCH
 !matchReq1.matchType := #UNRANKED
 !matchReq1.timed := false
@@ -113,9 +116,11 @@ reset
 !match1.id := 'match1'
 !match1.type := #UNRANKED
 !match1.timed := false
+!match1.date := matchReq1AddrDate
 !match1.time := 35
 !match1.category := #NONE
 !match1.status := #INPROGRESS
+!insert (match1, dict) into WordCheck
 !insert (matchReq1,match1) into RequestMatch
 !insert (player2,match1) into Rack
 !insert (player1,match1) into Rack
