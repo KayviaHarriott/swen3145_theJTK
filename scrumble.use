@@ -18,12 +18,12 @@ enum RequestType {FRIEND, MESSAGE, MATCH}
 enum BlockStatus {BLOCKED, UNBLOCKED}
 enum MessageStatus {UNSEEN, SEEN}
 enum ChatStatus {OPEN, CLOSED}
+enum NotificationType {CHAT, REQUEST, REMINDER}
 
 --! @TODO:
 --!     Add classes to handle game support (claim, claim status enum,
 --!         claims can be reporting players or bug reports)
 --!     Add attributes to represent the rest of the player's profile data
---!     add different types of notifications (As suggested from Ourvle QNA)
 --!     no plays in the future
 --!
 --!     DESIGN PATTERN REFINEMENTS
@@ -423,6 +423,12 @@ attributes
     sentDate: DateTime
     seenDate: DateTime
 end -- Message Class
+
+class Notification
+attributes
+    type: NotificationType
+    deliverytime: Time
+end
 
 class Chat < Observable
 end -- Chat Class
