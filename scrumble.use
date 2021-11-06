@@ -1,8 +1,8 @@
 ------------------------------------------------------------------------------
 --! @authors: Jason Hunter, Kayvia Harriott, Tashna-Gail Williams
 --! Created on: 2021-10-11
---! @version: 0.4
---! Last Updated: 2021-11-03 11:46:01
+--! @version: 0.4.5
+--! Last Updated: 2021-11-06 12:00:48
 ------------------------------------------------------------------------------
 
 model scrumble
@@ -19,10 +19,10 @@ enum BlockStatus {BLOCKED, UNBLOCKED}
 enum MessageStatus {UNSEEN, SEEN}
 enum ChatStatus {OPEN, CLOSED}
 enum NotificationType {CHAT, REQUEST, REMINDER}
+enum ReportType {BUG, PLAYER}
+enum ReportStatus {UNRESOLVED, UNDER_REVIEW, RESOLVED}
 
 --! @TODO:
---!     Add classes to handle game support (claim, claim status enum,
---!         claims can be reporting players or bug reports)
 --!     Add attributes to represent the rest of the player's profile data
 --!     no plays in the future
 --!
@@ -45,6 +45,7 @@ enum NotificationType {CHAT, REQUEST, REMINDER}
 --!             | player      | request  |
 --!             | match       | play     |
 --!             | player      | chat     |
+--!             | player      | report   |
 --!             +-------------+----------+
 --!
 --!         Notes: - Leaderboard observes matches so that player may update
@@ -57,6 +58,8 @@ enum NotificationType {CHAT, REQUEST, REMINDER}
 --!                  play is made and generate a notification
 --!                - Player observes chat so chat may notify a player when a
 --!                  new message is received
+--!                - Player observes report so report may notify a player when
+--!                  it's status changes
 --!
 --!         Singleton Pattern
 --!             1 to one associations of the class with itself
@@ -413,7 +416,10 @@ attributes
     status: PlayerStatus
     state: ProfileState init: #PRIVATE
 operations
-    -- update, openChat, closeChat, sendMsg, joinGame, sendReq, addressReq
+    -- update
+    -- sendMsg, joinGame, sendReq, addressReq
+    -- blockPlayer, makeClaim
+    -- open/close: chat, match, app
 end -- Player Class
 
 class Message < Identifiable
@@ -427,7 +433,10 @@ end -- Message Class
 class Notification
 attributes
     type: NotificationType
-    deliverytime: Time
+    deliverytime: DateTime
+    dismissed: Boolean init: false
+operations
+    -- dismiss, dismissWithAction, gotoAndDismiss
 end
 
 class Chat < Observable
@@ -464,6 +473,12 @@ attributes
     date: DateTime
     status: BlockStatus init: #BLOCKED
 end -- Block Association Class
+
+class Report < Observable
+attributes
+    type: ReportType
+    status: ReportStatus init: #UNRESOLVED
+end -- Report Class
 
 -------------------------------------Game-------------------------------------
 
@@ -570,6 +585,16 @@ end -- OnlyDict Association
 
 
 
+association Signal between
+    Notification[*] role notifs
+    Observable[1] role event
+end -- Signal Association
+
+association Notify between
+    Notification[*] role notifs
+    Player[1]
+end -- Signals Association
+
 composition PlayerChat between
     Chat[1] role chat
     Message[*] role messages ordered
@@ -600,6 +625,15 @@ association RecievedMessage between
     Message[*] role rcvdMsgs
 end -- End RecievedMessage Association
 
+association Claim between
+    Player[1]
+    Report[*] role claims
+end -- Claim Association
+
+association Reported between
+    Report[*] role reports
+    Player[0..1] role reported --directed
+end -- Reported Association
 
 
 association MatchGameBoard between
@@ -814,13 +848,15 @@ context Player
                 req.activePeriod.containsDate(m.sentDate)
         ))
 
-    -- players in match must have status in game
-    inv playerStatusConsistent:
-        if matchHistory->any(m | m.status = #INPROGRESS) <> null then
-            status = #PLAYING
-        else
-            status <> #PLAYING
-        endif
+    -- Enforcing this invariant would go against allowing players to go
+    -- offline during a match.
+    ---- players in match must have status in game
+    --inv playerStatusConsistent:
+    --    if matchHistory->any(m | m.status = #INPROGRESS) <> null then
+    --        status = #PLAYING
+    --    else
+    --        status <> #PLAYING
+    --    endif
 
     -- Can't play more than one match at a time
     inv onlyPlayingOneOrNoMatches:
@@ -918,6 +954,16 @@ context MatchRequest
         timed = match.timed and activePeriod.getStart() = match.date)
 -- End MatchRequest Constraints
 
+context Report
+    -- Only Player reports may be associated with more than one player
+    inv onlyPlayerReportsHave2Players:
+        if type = #PLAYER then
+            reported->size() = 1
+        else
+            reported->size() = 0
+        endif
+-- End Report Constraints
+
 context Play
     -- Plays can only go in one direction
     inv oneDirection:
@@ -949,7 +995,7 @@ context Play
         tiles->isEmpty()
 
     -- Only valid words may be spelt
-    inv allWordsSpeltAreValidAndOnlySpeltWordsAreLinked:
+    inv allWordsSpeltAreValidAndOnlySpeltWordsLinked:
         if type = #PLAY then
             if startRow = endRow then
                 let
