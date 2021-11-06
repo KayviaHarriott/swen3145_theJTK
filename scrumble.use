@@ -1,7 +1,7 @@
 ------------------------------------------------------------------------------
 --! @authors: Jason Hunter, Kayvia Harriott, Tashna-Gail Williams
 --! Created on: 2021-10-11
---! @version: 0.3
+--! @version: 0.4
 --! Last Updated: 2021-11-03 11:46:01
 ------------------------------------------------------------------------------
 
@@ -16,22 +16,14 @@ enum RequestStatus {PENDING, ACCEPTED, REJECTED, RECINDED, LOST}
 enum MatchStatus {INPROGRESS, COMPLETE, ABANDONED}
 enum RequestType {FRIEND, MESSAGE, MATCH}
 enum BlockStatus {BLOCKED, UNBLOCKED}
+enum MessageStatus {UNSEEN, SEEN}
+enum ChatStatus {OPEN, CLOSED}
 
 --! @TODO:
---!     For these 2 I'm thinking to add a period class to represent the
---!     duration the request was accepted for and allow periods to have no end
---!     date
---!     1. double check the date checking for valid match requests
---!     2. accepted requests must not have a recinded date
---!
---!     not matched with blocked players
---!     players cant interact with themselves
 --!     Add classes to handle game support (claim, claim status enum,
 --!         claims can be reporting players or bug reports)
 --!     Add attributes to represent the rest of the player's profile data
---!     add representations for message states (unseen, seen)
 --!     add different types of notifications (As suggested from Ourvle QNA)
---!     model NOW with reflexive association on the DateTime Class
 --!     no plays in the future
 --!
 --!     DESIGN PATTERN REFINEMENTS
@@ -50,13 +42,21 @@ enum BlockStatus {BLOCKED, UNBLOCKED}
 --!             +-------------+----------+
 --!             | leaderboard | match    |
 --!             | player      | match    |
+--!             | player      | request  |
 --!             | match       | play     |
---!             | chat        | message  |
+--!             | player      | chat     |
 --!             +-------------+----------+
 --!
---!         Note: Player observes match for status updates
---!         Note: If we have notifications then the notification class may
---!               need to observe anything that generated notifications
+--!         Notes: - Leaderboard observes matches so that player may update
+--!                  when a match ends
+--!                - Player observes match for status updates
+--!                - Player observes request so they may be notified when they
+--!                  receive a request
+--!                - Match observes play so play may advance the state of the
+--!                  game (ie. update the bag, board, racks and score) when a
+--!                  play is made and generate a notification
+--!                - Player observes chat so chat may notify a player when a
+--!                  new message is received
 --!
 --!         Singleton Pattern
 --!             1 to one associations of the class with itself
@@ -69,6 +69,14 @@ abstract class Identifiable
 attributes
     id: String
 end -- Identifiable
+
+abstract class Observer
+operations
+    --update(o: Observable)
+end -- Observer Class
+
+abstract class Observable
+end -- Observable Class
 
 class DateTime
 attributes
@@ -396,26 +404,39 @@ operations
     post selfStillValid: isValid(getStart(), getEnd())
 end -- Period Class
 
-class Player < Identifiable
+class Player < Identifiable, Observer
 attributes
     username: String
     email: String
     dob: DateTime
     score: Integer -- derived
     status: PlayerStatus
-    state: ProfileState
+    state: ProfileState init: #PRIVATE
+operations
+    -- update, openChat, closeChat, sendMsg, joinGame, sendReq, addressReq
 end -- Player Class
 
 class Message < Identifiable
 attributes
+    status: MessageStatus init: #UNSEEN
     message: String
-    date: DateTime --should be time
+    sentDate: DateTime
+    seenDate: DateTime
 end -- Message Class
 
-class Chat
+class Chat < Observable
 end -- Chat Class
 
-class Request < Identifiable
+associationclass ChatState
+between
+    Chat[*] role chatRooms
+    Player[2] role participants
+attributes
+    status: ChatStatus init: #CLOSED
+    lastOpened: DateTime
+end -- End ChatState Association Class
+
+class Request < Identifiable, Observable
 attributes
     status: RequestStatus init: #PENDING
     sentDate: DateTime
@@ -435,10 +456,10 @@ between
     Player[*] role blocked
 attributes
     date: DateTime
-    status: BlockStatus
+    status: BlockStatus init: #BLOCKED
 end -- Block Association Class
 
--------------------Game-------------------
+-------------------------------------Game-------------------------------------
 
 associationclass Rack
 between
@@ -446,7 +467,7 @@ between
     Match[*] role matchHistory ordered
 end -- Rack Association Class
 
-class Play < Identifiable
+class Play < Identifiable, Observable
 attributes
     type: PlayType
     startRow: Integer
@@ -459,7 +480,6 @@ attributes
 end -- Play Class
 
 class Board
-attributes
 end -- Board Class
 
 class Slot
@@ -490,17 +510,21 @@ end -- Word Class
 class Dictionary
 end -- Dictionary Class
 
-class Match < Identifiable
+class Match < Identifiable, Observer, Observable
 attributes
     type: MatchType
     timed: Boolean
     time: Integer -- Elapsed seconds
     date: DateTime
     category: Category
-    status: MatchStatus
+    status: MatchStatus init: #INPROGRESS
+operations
+    -- update
 end -- Match Class
 
-class Leaderboard
+class Leaderboard < Observer
+operations
+    -- update
 end -- Leaderboard Class
 
 associationclass Rank
@@ -511,11 +535,16 @@ attributes
     placement: Integer
 end -- Rank Association Class
 
----------------Associations---------------
+---------------------------------Associations---------------------------------
 
-association currentDate between
+association Watches between
+    Observer[*]
+    Observable[*]
+end -- watches Association
+
+association CurrentDate between
     DateTime[*]
-    DateTime[0..1] role today
+    DateTime[0..1] role now
 end -- currentDate Association
 
 association PeriodInterval between
@@ -523,16 +552,22 @@ association PeriodInterval between
     DateTime[0..2] role interval ordered
 end -- interval Association
 
+association OnlyLboard between
+    Leaderboard[1] role lboard1
+    Leaderboard[1] role lboard2
+end -- OnlyLboard Association
+
+association OnlyDict between
+    Dictionary[1] role dict1
+    Dictionary[1] role dict2
+end -- OnlyDict Association
+
+
 
 composition PlayerChat between
     Chat[1] role chat
     Message[*] role messages ordered
 end -- End PlayerChat Composition
-
-association ChatRooms between
-    Chat[*] role chatRooms
-    Player[2] role participants
-end -- End ChatRooms Association
 
 association SentRequest between
     Player[1] role reqSender
@@ -560,11 +595,6 @@ association RecievedMessage between
 end -- End RecievedMessage Association
 
 
-
-association Observes between
-    Leaderboard[1] role observer
-    Match[*] role watches
-end -- End Observes Association
 
 association MatchGameBoard between
     Match[1]
@@ -636,7 +666,7 @@ association Marked between
     Letter[1]
 end -- End Marked Association
 
-----------------Constraints---------------
+----------------------------------Constraints---------------------------------
 
 constraints
 context Identifiable
@@ -645,8 +675,21 @@ context Identifiable
         i1 <> i2 implies i1.id <> i2.id)
 -- End Identifiable Constraints
 
+--context Observer
+--    -- Objects cannot observe themselves
+--    inv noSelfObserving: observable->excludes(self)
+---- End Observer Constraints
+
 context DateTime
     inv dateIsValid: isSelfValid()
+
+    -- There must only be one "today" in the system
+    -- #DOUBLE-CHECK
+    inv onlyOneCurrentTime:
+        let
+            now = DateTime.allInstances.now->asSet()
+        in (DateTime.allInstances->size() > 1 implies now->size() = 1) and
+            now->forAll(t | t.oclIsTypeOf(DateTime))
 -- End DateTime Constraints
 
 context Period
@@ -680,11 +723,12 @@ context Player
         in friends->excludesAll(blocked)
 
     -- Cannot send requests to yourself
-    inv noSelfRequests: sentReqs.reqRcvr->excludes(self)
+    inv noSelfReqsBlocks: sentReqs.reqRcvr->excludes(self) and
+        blocked->excludes(self)
 
     -- All pending requests from players you block become lost and requests
     -- sent to them become recinded
-    inv noPendingRequestsWithBlockedPlayers:
+    inv noPendingReqsWithBlockedPlayers:
         block[player]->select(b | b.status = #BLOCKED)->forAll(b |
             not sentReqs->union(rcvdReqs)->exists(req |
                 Set{req.reqSender, req.reqRcvr}->includes(b.blocked) and
@@ -740,7 +784,7 @@ context Player
         ))
 
     -- Can only exchange match requests among friends
-    inv onlyFriendsExchangeMatchRequests:
+    inv onlyFriendsExchangeMatchReqs:
         let
             allReqs = sentReqs->union(rcvdReqs),
             frReqs = allReqs->select(req | req.type = #FRIEND and
@@ -761,7 +805,7 @@ context Player
                 Set{#ACCEPTED, #RECINDED}->includes(req.status))
         in rcvdMsgs->forAll(m | frAndMsgReqs->exists(req |
             Set{req.reqSender, req.reqRcvr} = Set{m.msgSender, m.msgRcvr} and
-                req.activePeriod.containsDate(m.date)
+                req.activePeriod.containsDate(m.sentDate)
         ))
 
     -- players in match must have status in game
@@ -792,24 +836,47 @@ context Chat
             i = messages->indexOf(m),
             previousMsgs = messages->subOrderedSet(1, i - 1)
         in messages->first() <> m implies
-            previousMsgs->forAll(prevM | prevM.date.before(m.date)))
+            previousMsgs->forAll(prevM | prevM.sentDate.before(m.sentDate)))
+
+    -- Only the newest messages from a single player in a chat may be unseen
+    inv onlyNewestMsgsMayBeUnseen:
+        let
+            unseen = messages->select(m | m.status = #UNSEEN),
+            sender = unseen.msgSender->asSet(),
+            lastMsg = unseen->last()
+        in unseen->size() > 0 implies (sender->size() = 1 and
+            messages->forAll(m | unseen->excludes(m) and m.status = #SEEN))
 -- End Chat Constraints
+
+context ChatState
+    -- All messages from the other player before lastOpened date must be seen
+    inv noUnseenMsgsBeforeLastOpened:
+        chatRooms.messages->forAll(m | (m.sentDate.before(lastOpened) and
+            m.msgSender <> participants) implies m.status = #SEEN)
+-- End ChatState Constraints
 
 context Message
     -- Each message must have a date
-    inv hasDate: date.oclIsKindOf(DateTime)
+    inv hasDate: sentDate.oclIsKindOf(DateTime)
 
     -- Messages must have a body
     inv noEmptyMsgs: message.size() > 0
+
+    -- Messages may only be seen after they have been sent
+    inv validSeenDate: (status = #UNSEEN and seenDate = null) or
+        (status = #SEEN and seenDate <> null and seenDate.after(sentDate))
 -- End Message Constraints
 
 context Request
     -- Each request must have a sent date
     inv hasSentDate: sentDate.oclIsKindOf(DateTime)
 
-    -- Each request has an active period that starts after it was sent
-    inv validActivePeriod: activePeriod.oclIsKindOf(Period) implies
-        sentDate.before(activePeriod.getStart())
+    -- Each accepted request must have an active period that starts after it
+    -- was sentand must not have an end date that is set once the request is
+    -- recinded
+    inv validAcceptedReq: status = #ACCEPTED implies
+        (activePeriod <> null and activePeriod.getStart().after(sentDate) and
+        activePeriod.getEnd() = null)
 
     -- For each type of request, ther can only be one pending request between
     -- each unique pair of players.
