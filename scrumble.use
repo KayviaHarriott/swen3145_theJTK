@@ -7,24 +7,36 @@
 
 model scrumble
 
-enum PlayerStatus {ONLINE, OFFLINE, AWAY, PLAYING}
-enum ProfileState {PRIVATE, PUBLIC}
-enum MatchType {RANKED, UNRANKED}
-enum Category {ANIMAL, MUSIC, MOVIES, FOOD, BOOKS, COUNTRIES, NONE}
-enum PlayType {PLAY, PASS, QUIT}
-enum RequestStatus {PENDING, ACCEPTED, REJECTED, RECINDED, LOST}
-enum MatchStatus {INPROGRESS, COMPLETE, ABANDONED}
-enum RequestType {FRIEND, MESSAGE, MATCH}
 enum BlockStatus {BLOCKED, UNBLOCKED}
-enum MessageStatus {UNSEEN, SEEN}
 enum ChatStatus {OPEN, CLOSED}
-enum NotificationType {CHAT, REQUEST, REMINDER}
-enum ReportType {BUG, PLAYER}
+enum MatchStatus {INPROGRESS, COMPLETE, ABANDONED}
+enum MessageStatus {UNSEEN, SEEN}
+enum PlayerStatus {ONLINE, OFFLINE, AWAY, PLAYING}
 enum ReportStatus {UNRESOLVED, UNDER_REVIEW, RESOLVED}
+enum RequestStatus {PENDING, ACCEPTED, REJECTED, RECINDED, LOST}
+
+enum MatchType {RANKED, UNRANKED}
+enum NotificationType {CHAT, REQUEST, REMINDER} -- do we need this since notif is linked to observable now?
+enum PlayType {PLAY, PASS, QUIT}
+enum ReportType {BUG, PLAYER}
+enum RequestType {FRIEND, MESSAGE, MATCH}
+
+enum Category {ANIMAL, MUSIC, MOVIES, FOOD, BOOKS, COUNTRIES, NONE}
+enum ProfileState {PRIVATE, PUBLIC}
 
 --! @TODO:
---!     Add attributes to represent the rest of the player's profile data
---!     no plays in the future
+--!     - Add attributes to represent the rest of the player's profile data
+--!     - no plays in the future
+--!     - Rack might need an enum to indicate that a player has a specific
+--!       match open so it doesn't generate notifs when the match is open and
+--!       a play is made
+--!     - Class to represent the match queue for players waiting to join a
+--!       match. It would have a never ending loop constantly running to empty
+--!       a queue of players and make matches. It would be observable by
+--!       Player so a player can get updates when a match is made. We may need
+--!       a queue for each type of match
+--!     - If we can delete messages and reply to messages then we would add
+--!       methods for those as well
 --!
 --!     DESIGN PATTERN REFINEMENTS
 --!         Observer Pattern
@@ -41,7 +53,7 @@ enum ReportStatus {UNRESOLVED, UNDER_REVIEW, RESOLVED}
 --!             | observer    | observes |
 --!             +-------------+----------+
 --!             | leaderboard | match    |
---!             | player      | match    |
+--!             | player      | match    | **
 --!             | player      | request  |
 --!             | match       | play     |
 --!             | player      | chat     |
@@ -75,6 +87,7 @@ end -- Identifiable
 
 abstract class Observer
 operations
+    -- This is the method called by the observable to update the Observer
     --update(o: Observable)
 end -- Observer Class
 
@@ -416,10 +429,67 @@ attributes
     status: PlayerStatus
     state: ProfileState init: #PRIVATE
 operations
-    -- update
-    -- sendMsg, joinGame, sendReq, addressReq
-    -- blockPlayer, makeClaim
-    -- open/close: chat, match, app
+    --getters (we'll have to restrict what may be obtained in the method I
+    -- think)
+
+    -- Generates notifications based on what event occured
+    --update(o: Observable)
+
+    -- update helper function for match events
+    --updateHelperMatch(o: Match)
+
+    -- update helper function for chat events
+    --updateHelperChat(o: Chat)
+
+    -- update helper function for request events
+    --updateHelperRequest(o: Request)
+
+    -- update helper function for report events
+    --updateHelperReport(o: Report)
+
+    -- update helper function for matchRequest events
+    --updateHelperMatchReq(o: MatchRequest)
+
+    -- Sends a message in a given chat
+    --sendMsg(c: Chat, msg: String)
+
+    -- Adds the player to the match queue
+    --joinQueue
+
+    -- Sends a request to the specified player
+    --sendReq(p: Player, t: RequestType)
+
+    -- Updates the status of a received request
+    --addressReq(req: Request, action: RequestStatus)
+
+    -- Adds a player to the player's blocked list
+    -- blockPlayer(p: Player)
+
+    -- Creates a bug report
+    --reportBug(msg: String)
+
+    -- Creates a report against the specified player
+    --reportBug(p: Player)
+
+    -- Opens the specified chat (Should this take a player or the chat?)
+    --openChat(c: Chat)
+
+    -- Closes the specified chat
+    --closeChat(c: Chat)
+
+    -- Opens the specified match
+    --openMatch(m: Match)
+
+    -- Closes the specified match
+    --closeMatch(m: Match)
+
+    -- Executes actions that should occur once the player opens the app or
+    -- logs in
+    --openApp()
+
+    -- Executes actions that should occur once the player closes the app
+    -- or logs out
+    --closeApp()
 end -- Player Class
 
 class Message < Identifiable
@@ -428,6 +498,11 @@ attributes
     message: String
     sentDate: DateTime
     seenDate: DateTime
+operations
+    --getters
+
+    -- Sets the message status to SEEN
+    --view()
 end -- Message Class
 
 class Notification
@@ -436,10 +511,32 @@ attributes
     deliverytime: DateTime
     dismissed: Boolean init: false
 operations
-    -- dismiss, dismissWithAction, gotoAndDismiss
+    -- Matks the message as dismissed
+    -- dismiss()
+
+    -- Opens the app to the relevant view then dismisses the notification
+    --gotoAndDismiss()
+
+    -- gotoAndDismiss helper for chat event notifications
+    --gotoChatHelper
+
+    -- gotoAndDismiss helper for match event notifications
+    --gotoMatchHelper
+
+    -- gotoAndDismiss helper for request event notifications
+    --gotoRequestHelper
+
+    -- gotoAndDismiss helper for report event notifications
+    --gotoReportHelper
 end
 
 class Chat < Observable
+operations
+    -- Creates a new message
+    --createMessage(msg: String)
+
+    -- Marks all the newest received messages as seen
+    --view(p: Player)
 end -- Chat Class
 
 associationclass ChatState
@@ -449,6 +546,12 @@ between
 attributes
     status: ChatStatus init: #CLOSED
     lastOpened: DateTime
+operations
+    -- Sets the chat state to open
+    --setOpen() -- view all unseen messages and set ChatStatus to OPEN
+
+    -- Sets the chat state to closed
+    --setClosed() -- set lastOpened date and set ChatStatus to CLOSED
 end -- End ChatState Association Class
 
 class Request < Identifiable, Observable
@@ -457,12 +560,24 @@ attributes
     sentDate: DateTime
     activePeriod: Period
     type: RequestType
+operations
+    -- Mark the request as accepted
+    --accept()
+    -- Mark the request as rejected
+    --reject()
+    -- Mark the request as recinded
+    --recind()
+    -- Mark the request as lost
+    --block()
 end -- Request Class
 
 class MatchRequest < Request
 attributes
     matchType: MatchType
     timed: Boolean
+operations
+    -- Mark the request as accepted and creates a new match
+    --accept()
 end -- MatchRequest Class
 
 associationclass Block
@@ -472,12 +587,26 @@ between
 attributes
     date: DateTime
     status: BlockStatus init: #BLOCKED
+operations
+    -- Mark a player as blocked
+    --block()
+
+    -- Mark a player as unblocked
+    --unblock()
 end -- Block Association Class
 
 class Report < Observable
 attributes
     type: ReportType
     status: ReportStatus init: #UNRESOLVED
+operations
+    --getters
+
+    -- Mark the report as under review
+    --review()
+
+    -- Mark the report as resolved
+    --resolve()
 end -- Report Class
 
 -------------------------------------Game-------------------------------------
@@ -486,6 +615,13 @@ associationclass Rack
 between
     Player[2] role players
     Match[*] role matchHistory ordered
+operations
+    -- Makes a play
+    --play(tileSeq: OrderedSet(Letters),
+    --sRow: Integer, sCol: Integer, eRow: Integer, eCol: Integer)
+
+    -- Passes a turn
+    --pass()
 end -- Rack Association Class
 
 class Play < Identifiable, Observable
@@ -507,28 +643,43 @@ class Slot
 attributes
     row: Integer
     column: Integer
+operations
+    --getters and setters
 end -- Slot Class
 
 class Tile
 attributes
     points: Integer
+operations
+    --getters
 end -- Tile Class
 
 class Letter
 attributes
     letter: String
+operations
+    --getters
 end -- Letter Class
 
 class LetterBag
+operations
+    -- Randomly picks a tile from the bag
+    --remove
 end -- LetterBag Class
 
 class Word
 attributes
     String: Word
     category:  Category
+operations
+    --getters
+    --protected setters
 end -- Word Class
 
 class Dictionary
+operations
+    --getters
+    --protected setters
 end -- Dictionary Class
 
 class Match < Identifiable, Observer, Observable
@@ -541,11 +692,15 @@ attributes
     status: MatchStatus init: #INPROGRESS
 operations
     -- update
+operations
+    --getters
 end -- Match Class
 
 class Leaderboard < Observer
 operations
     -- update
+operations
+    --getters
 end -- Leaderboard Class
 
 associationclass Rank
@@ -554,6 +709,8 @@ between
     Player[*] role players ordered
 attributes
     placement: Integer
+operations
+    --getters
 end -- Rank Association Class
 
 ---------------------------------Associations---------------------------------
