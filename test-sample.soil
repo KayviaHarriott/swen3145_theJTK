@@ -14,8 +14,13 @@
 reset
 
 !new Leaderboard('lboard')
+!insert (lboard,lboard) into OnlyLboard
 
 !new Dictionary('dict')
+!insert (dict,dict) into OnlyDict
+
+!new DateTime('rightNow')
+!rightNow.initialise(2021, 10, 22, 12, 59, 59)
 
 !new Player('player1')
 !player1.id := 'player1'
@@ -25,8 +30,8 @@ reset
 !player1.state := #PRIVATE
 !player1.score := 500
 
-!insert (lboard,player1) into Rank
-!Rank1.placement := 1
+!new Rank('rank1') between (lboard,player1)
+!rank1.placement := 1
 
 !new Player('player2')
 !player2.id := 'player2'
@@ -36,16 +41,18 @@ reset
 !player2.state := #PRIVATE
 !player2.score := 450
 
-!insert (lboard,player2) into Rank
-!Rank2.placement := 2
+!new Rank('rank2') between (lboard,player2)
+!rank2.placement := 2
 
 --------Friend Request between Players 1 and 2
 
 !new DateTime('frReq1SentDate')
-!frReq1SentDate.initialise(20, 10, 2021, 18, 05, 13)
+!insert (frReq1SentDate, rightNow) into CurrentDate
+!frReq1SentDate.initialise(2021, 10, 20, 18, 05, 13)
 
 !new DateTime('frReq1AddrDate')
-!frReq1AddrDate.initialise(21, 10, 2021, 6, 05, 21)
+!insert (frReq1AddrDate, rightNow) into CurrentDate
+!frReq1AddrDate.initialise(2021, 10, 21, 6, 05, 21)
 
 !new Period('frReq1Period')
 !frReq1Period.addStart(frReq1AddrDate)
@@ -56,45 +63,54 @@ reset
 !frReq1P1P2.status := #ACCEPTED
 !frReq1P1P2.sentDate := frReq1SentDate
 !frReq1P1P2.activePeriod := frReq1Period
-!frReq1P1P2.addressedDate := frReq1AddrDate
 !insert (player1,frReq1P1P2) into SentRequest
 !insert (player2,frReq1P1P2) into RecievedRequest
 
 --------Chat between Players 1 and 2
 
 !new Chat('chatp1p2')
-!insert (chatp1p2,player1) into ChatRooms
-!insert (chatp1p2,player2) into ChatRooms
+!new ChatState('chat1p1') between (chatp1p2,player1)
+!new ChatState('chat1p2') between (chatp1p2,player2)
 
 !new DateTime('msg1Date')
-!msg1Date.initialise(22, 10, 2021, 12, 35, 06)
+!insert (msg1Date, rightNow) into CurrentDate
+!msg1Date.initialise(2021, 10, 22, 12, 35, 06)
 
 !new Message('msg1p1p2')
 !msg1p1p2.id := 'msg1'
 !msg1p1p2.message := 'This is a test'
-!msg1p1p2.date := msg1Date
+!msg1p1p2.sentDate := msg1Date
+!msg1p1p2.status := #SEEN
 !insert (chatp1p2,msg1p1p2) into PlayerChat
 !insert (player1,msg1p1p2) into RecievedMessage
 !insert (player2,msg1p1p2) into SentMessage
 
+!chat1p1.lastOpened := msg1Date
+
 !new DateTime('msg2Date')
-!msg2Date.initialise(22, 10, 2021, 12, 35, 45)
+!insert (msg2Date, rightNow) into CurrentDate
+!msg2Date.initialise(2021, 10, 22, 12, 35, 45)
 
 !new Message('msg2p1p2')
 !msg2p1p2.id := 'msg2'
 !msg2p1p2.message := 'tset a si sihT'
-!msg2p1p2.date := msg2Date
+!msg2p1p2.sentDate := msg2Date
+!msg1p1p2.status := #SEEN
 !insert (chatp1p2,msg2p1p2) into PlayerChat
 !insert (player2,msg2p1p2) into RecievedMessage
 !insert (player1,msg2p1p2) into SentMessage
 
+!chat1p2.lastOpened := msg2Date
+
 --------Match Request between Players 1 and 2
 
 !new DateTime('matchReq1SentDate')
-!matchReq1SentDate.initialise(22, 10, 2021, 12, 36, 12)
+!insert (matchReq1SentDate, rightNow) into CurrentDate
+!matchReq1SentDate.initialise(2021, 10, 22, 12, 36, 12)
 
 !new DateTime('matchReq1AddrDate')
-!matchReq1AddrDate.initialise(22, 10, 2021, 12, 37, 21)
+!insert (matchReq1AddrDate, rightNow) into CurrentDate
+!matchReq1AddrDate.initialise(2021, 10, 22, 12, 37, 21)
 
 !new Period('matchReq1Period')
 !matchReq1Period.addStart(matchReq1AddrDate)
@@ -112,12 +128,14 @@ reset
 
 --------Match between Player 1 and 2
 
+!new Period('match1Period')
+!match1Period.addStart(matchReq1AddrDate)
+
 !new Match('match1')
 !match1.id := 'match1'
 !match1.type := #UNRANKED
 !match1.timed := false
-!match1.date := matchReq1AddrDate
-!match1.time := 35
+!match1.duration := match1Period
 !match1.category := #NONE
 !match1.status := #INPROGRESS
 !insert (match1, dict) into WordCheck
@@ -130,6 +148,10 @@ reset
 !new LetterBag
 !insert (LetterBag1,Board1) into LetterOptions
 
+!new DateTime('m1Play1Time')
+!insert (m1Play1Time, rightNow) into CurrentDate
+!matchReq1AddrDate.initialise(2021, 10, 22, 12, 37, 31)
+
 !new Play('play1')
 !play1.id := 'm1play1'
 !play1.type := #PLAY
@@ -138,10 +160,14 @@ reset
 !play1.endRow := 12
 !play1.endCol := 8
 !play1.score := 7
-!play1.time := 7
+!play1.time := m1Play1Time
 !play1.bonusApplied := false
 !insert (Rack2,play1) into Played
 !insert (match1,play1) into Plays
+
+!new DateTime('m1Play2Time')
+!insert (m1Play2Time, rightNow) into CurrentDate
+!matchReq1AddrDate.initialise(2021, 10, 22, 12, 37, 39)
 
 !new Play('play2')
 !play2.id := 'm1play2'
@@ -151,10 +177,14 @@ reset
 !play2.endRow := 9
 !play2.endCol := 10
 !play2.score := 13
-!play2.time := 15
+!play2.time := m1Play2Time
 !play2.bonusApplied := false
 !insert (Rack1,play2) into Played
 !insert (match1,play2) into Plays
+
+!new DateTime('m1Play3Time')
+!insert (m1Play3Time, rightNow) into CurrentDate
+!matchReq1AddrDate.initialise(2021, 10, 22, 12, 37, 50)
 
 !new Play('play3')
 !play3.id := 'm1play3'
@@ -164,10 +194,14 @@ reset
 !play3.endRow := 12
 !play3.endCol := 14
 !play3.score := 20
-!play3.time := 27
+!play3.time := m1Play3Time
 !play3.bonusApplied := false
 !insert (Rack2,play3) into Played
 !insert (match1,play3) into Plays
+
+!new DateTime('m1Play4Time')
+!insert (m1Play4Time, rightNow) into CurrentDate
+!matchReq1AddrDate.initialise(2021, 10, 22, 12, 38, 0)
 
 !new Play('play4')
 !play4.id := 'm1play4'
@@ -177,7 +211,7 @@ reset
 !play4.endRow := 9
 !play4.endCol := 13
 !play4.score := 10
-!play4.time := 33
+!play4.time := m1Play4Time
 !play4.bonusApplied := false
 !insert (Rack1,play4) into Played
 !insert (match1,play4) into Plays

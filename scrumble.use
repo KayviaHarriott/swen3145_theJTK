@@ -26,7 +26,7 @@ enum ProfileState {PRIVATE, PUBLIC}
 
 --! @TODO:
 --!     - Add attributes to represent the rest of the player's profile data
---!     - no plays in the future
+--!     - no plays in the future or before the match start
 --!     - Rack might need an enum to indicate that a player has a specific
 --!       match open so it doesn't generate notifs when the match is open and
 --!       a play is made
@@ -37,6 +37,10 @@ enum ProfileState {PRIVATE, PUBLIC}
 --!       a queue for each type of match
 --!     - If we can delete messages and reply to messages then we would add
 --!       methods for those as well
+--!     - Should we have matches older than say 30 days automatically end?
+--!     - If Datetime becomes observable then would it still be a datatype?
+--!     - check to ensure that the seen date of the last message corresponds
+--!       with the lastOpened Date
 --!
 --!     DESIGN PATTERN REFINEMENTS
 --!         Observer Pattern
@@ -94,17 +98,101 @@ end -- Observer Class
 abstract class Observable
 end -- Observable Class
 
+-- tm_sec +
+-- tm_min*60 +
+-- tm_hour*3600 +
+-- tm_yday*86400 +
+-- (tm_year-70)*31536000 +
+-- ((tm_year-69)/4)*86400 -
+-- ((tm_year-1)/100)*86400 +
+-- ((tm_year+299)/400)*86400
+-- ? frReq1AddrDate.toSecondsSinceEposh(2000, 1, 1, 0, 0, 1)
+-- ? frReq1AddrDate.makeHumanReadable(2147483647)
+-- ? ((1024*1024*1024).oclAsType(UnlimitedNatural) * 4.oclAsType(UnlimitedNatural)).oclAsType(UnlimitedNatural)
+-- ? (4294967296.0).oclAsType(Real)
+-- ? (429496729).oclAsType(UnlimitedNatural)
+
 class DateTime
 attributes
-    -- Initialized to this system's eposh time 1900-01-01 00:00:00
-    day: Integer init: 1
-    month: Integer init: 1
-    year: Integer init: 1900
-    hour: Integer init: 0
-    minute: Integer init: 0
-    second: Integer init: 0
+    TO_SEC: Tuple(y: Integer, d: Integer, hr: Integer, min: Integer) init:
+        Tuple{y = 31557600, d = 86400, hr = 3600, min = 60}
+    -- 31557600 is the number of seconds in a year
+    -- 86400 is the number of seconds in a day
+    -- 3600 is the number of seconds in an hour
+    -- 60 is the number of seconds in a minute
+
+    EPOSH: Tuple(
+        y: Integer, m: Integer, d: Integer,
+        hr: Integer, min: Integer, sec: Integer
+    ) init: Tuple{y = 2000, m = 1, d = 1, hr = 0, min = 0, sec = 0}
+
+    -- Initialized to this system's eposh time 2000-01-01 00:00:00
+    day: Integer init: EPOSH.d
+    month: Integer init: EPOSH.m
+    year: Integer init: EPOSH.y
+    hour: Integer init: EPOSH.hr
+    minute: Integer init: EPOSH.min
+    second: Integer init: EPOSH.sec
+    secondsSinceEposh: Integer derived:
+        toSecondsSinceEposh(year, month, day, hour, minute, second)
 operations
-    initialise(d: Integer, m: Integer, y: Integer,
+    -- Takes a duration in seconds and it into years, months, days
+    -- hours, minutes and seconds
+    makeHumanReadable(sec: Integer): Tuple(
+    y: Integer, m: Integer, d: Integer,
+    hr: Integer, min: Integer, sec: Integer) =
+        let
+            years = EPOSH.y + (sec div TO_SEC.y),
+            leapDayCorrection = (years div 400) - (years div 100),
+            remDays = sec.mod(TO_SEC.y) div TO_SEC.d + leapDayCorrection,
+            daysOfEachMonth = if isLeapYear(years) then
+                    Sequence{31, 29, 31, 30, 31, 30, 31, 31, 30, 31, 30, 31}
+                else
+                    Sequence{31, 28, 31, 30, 31, 30, 31, 31, 30, 31, 30, 31}
+                endif,
+            months = 1 + Sequence{1..12}->iterate(m2; ans: Integer = 0 |
+                if (daysOfEachMonth->subSequence(1, m2)->sum() < remDays) then
+                    ans + 1
+                else
+                    ans
+                endif),
+            days = remDays - daysOfEachMonth
+                ->subSequence(1, months - 1)->sum(),
+            hours = sec.mod(TO_SEC.y).mod(TO_SEC.d) div TO_SEC.hr,
+            minutes = sec.mod(TO_SEC.y).mod(TO_SEC.d)
+                .mod(TO_SEC.hr) div TO_SEC.min,
+            seconds = sec.mod(TO_SEC.y).mod(TO_SEC.d)
+                .mod(TO_SEC.hr).mod(TO_SEC.min)
+        in Tuple{y = years, m = months, d = days,
+            hr = hours, min = minutes, sec = seconds}
+
+    pre argIsValid: sec > 0
+    post resultIsValid: isValid(result.y, result.m, result.d,
+        result.hr, result.min, result.sec)
+
+    toSecondsSinceEposh(y: Integer, m: Integer, d: Integer,
+    hr: Integer, min: Integer, sec: Integer): Integer =
+        let
+            years = y - EPOSH.y,
+            leapDayCorrection = (years div 400) - (years div 100),
+            daysOfEachMonth = if isLeapYear(y) then
+                    Sequence{31, 29, 31, 30, 31, 30, 31, 31, 30, 31, 30, 31}
+                else
+                    Sequence{31, 28, 31, 30, 31, 30, 31, 31, 30, 31, 30, 31}
+                endif,
+            days = d + Sequence{1..(m - 1)}->iterate(prevM; ans: Integer = 0 |
+                ans + daysOfEachMonth->at(prevM)) + leapDayCorrection - 1
+        in (years * TO_SEC.y) + (days * TO_SEC.d) +
+            (hr * TO_SEC.hr) + (min * TO_SEC.min) + sec
+
+    pre argsAreValid: isValid(y, m, d, hr, min, sec)
+    post resultIsValid:
+        let
+            date = makeHumanReadable(result)
+        in result >= 0 and y = date.y and m = date.m and d = date.d and
+            hr = date.hr and min = date.min and sec = date.sec
+
+    initialise(y: Integer, m: Integer, d: Integer,
     hr: Integer, min: Integer, sec: Integer)
     begin
         self.year := y;
@@ -115,51 +203,54 @@ operations
         self.second := sec;
     end
 
-    pre parametersHaveValidValues: isValid(d, m, y, hr, min, sec)
+    pre parametersHaveValidValues: isValid(y, m, d, hr, min, sec)
     post attributesCorrectlyUpdated:
         day = d and month = m and year = y and
         hour = hr and minute = min and second = sec
 
     ---------------------------------Accessors--------------------------------
 
-    getDay(): Integer = day
-    getMonth(): Integer = month
     getYear(): Integer = year
+    getMonth(): Integer = month
+    getDay(): Integer = day
 
     getHour(): Integer = hour
     getMinute(): Integer = minute
     getSecond(): Integer = second
 
+    getNow(): DateTime = now
+    post resultNotNull: result <> null
+
     ---------------------------------Mutators---------------------------------
 
-    setDay(d: Integer)
-    begin self.day := d; end
-    pre newDateIsValid: isValid(d, month, year, hour, minute, second)
-    post dayCorrectlyUpdated: day = d
-
-    setMonth(m: Integer)
-    begin self.month := m; end
-    pre newDateIsValid: isValid(day, m, year, hour, minute, second)
-    post monthCorrectlyUpdated: month = m
-
     setYear(y: Integer)
-    begin self.year := y; end
-    pre newDateIsValid: isValid(day, month, y, hour, minute, second)
+    begin self.initialise(y, self.month, self.day,
+        self.hour, self.minute, self.second); end
     post yearCorrectlyUpdated: year = y
 
+    setMonth(m: Integer)
+    begin self.initialise(self.year, m, self.day,
+        self.hour, self.minute, self.second); end
+    post monthCorrectlyUpdated: month = m
+
+    setDay(d: Integer)
+    begin self.initialise(self.year, self.month, d,
+        self.hour, self.minute, self.second); end
+    post dayCorrectlyUpdated: day = d
+
     setHour(h: Integer)
-    begin self.hour := h; end
-    pre newDateIsValid: isValid(day, month, year, h, minute, second)
+    begin self.initialise(self.year, self.month, self.day,
+        h, self.minute, self.second); end
     post mutationSuccess: hour = h
 
     setMinute(m: Integer)
-    begin self.minute := m; end
-    pre newDateIsValid: isValid(day, month, year, hour, m, second)
+    begin self.initialise(self.year, self.month, self.day,
+        self.hour, m, self.second); end
     post mutationSuccess: minute = m
 
     setSecond(s: Integer)
-    begin self.second := s; end
-    pre newDateIsValid: isValid(day, month, year, hour, minute, s)
+    begin self.initialise(self.year, self.month, self.day,
+        self.hour, self.minute, s); end
     post mutationSuccess: second = s
 
     --------------------------------Predicates--------------------------------
@@ -167,59 +258,39 @@ operations
     -- returns true if all the attributes are not null, false otherwise
     isInitialised(): Boolean =
         day <> null and month <> null and year <> null and
-        hour <> null and minute <> null and second <> null
+        hour <> null and minute <> null and second <> null and
+        secondsSinceEposh >= 0
     post returnValueIsAccurate:
-        result = Set{day <> null, month <> null, year <> null}
+        result = Set{day <> null, month <> null, year <> null,
+            hour <> null, minute <> null, second <> null,
+            secondsSinceEposh >= 0}
             ->forAll(t | t = true)
 
     -- returns true if self is before d, false otherwise
-    before(d: DateTime): Boolean = (year < d.year) or
-        (year = d.year and month < d.month) or
-        (year = d.year and month = d.month and day < d.day) or
-        (year = d.year and month = d.month and day = d.day and
-            hour < d.hour) or
-        (year = d.year and month = d.month and day = d.day and
-            hour = d.hour and minute < d.minute) or
-        (year = d.year and month = d.month and day = d.day and
-            hour = d.hour and minute = d.minute and second < d.second)
-    pre bothAreInitialised: isInitialised() and d.isInitialised()
-    pre bothAreValid: isSelfValid() and d.isSelfValid()
-    post returnValueIsAccurate: result =
-        ((year < d.year) or
-        (year = d.year and month < d.month) or
-        (year = d.year and month = d.month and day < d.day) or
-        (year = d.year and month = d.month and day = d.day and
-            hour < d.hour) or
-        (year = d.year and month = d.month and day = d.day and
-            hour = d.hour and minute < d.minute) or
-        (year = d.year and month = d.month and day = d.day and
-            hour = d.hour and minute = d.minute and second < d.second)) -- = true
-
-    -- returns true if self has the same values as d, false otherwise
-    equals(d: DateTime): Boolean =
-        day = d.day and month = d.month and year = d.year and
-        hour = d.hour and minute = d.minute and second = d.second
-    pre bothAreInitialised: isInitialised() and d.isInitialised()
-    pre bothAreValid: isSelfValid() and d.isSelfValid()
-    post returnValueConditions:
-        result = Set{day = d.day, month = d.month, year = d.year}
-            ->forAll(t | t = true)
-
-    -- returns true if self is after d, false otherwise
-    after(d: DateTime): Boolean = (not equals(d)) and (not before(d))
+    before(d: DateTime): Boolean = secondsSinceEposh < d.secondsSinceEposh
     pre bothAreInitialised: isInitialised() and d.isInitialised()
     pre bothAreValid: isSelfValid() and d.isSelfValid()
     post returnValueIsAccurate:
-        result = Set{not equals(d), not before(d)}->forAll(t | t = true)
+        result = (secondsSinceEposh < d.secondsSinceEposh) -- = true
+
+    -- returns true if self has the same values as d, false otherwise
+    equals(d: DateTime): Boolean = secondsSinceEposh = d.secondsSinceEposh
+    pre bothAreInitialised: isInitialised() and d.isInitialised()
+    pre bothAreValid: isSelfValid() and d.isSelfValid()
+    post returnValueConditions:
+        result = (secondsSinceEposh < d.secondsSinceEposh)
+
+    -- returns true if self is after d, false otherwise
+    after(d: DateTime): Boolean = secondsSinceEposh > d.secondsSinceEposh
+    pre bothAreInitialised: isInitialised() and d.isInitialised()
+    pre bothAreValid: isSelfValid() and d.isSelfValid()
+    post returnValueIsAccurate:
+        result = (secondsSinceEposh > d.secondsSinceEposh)
 
     -- returns true if y is a leap year, false otherwise
-    isLeapYear(y: Integer): Boolean =
-        if (y.mod(400) = 0 or (y.mod(100) > 0 and y.mod(4) = 0)) then
-                true
-            else
-                false
-            endif
-    pre yearIsValid: y <> null and y > 1900
+    isLeapYear(y: Integer): Boolean = y.mod(400) = 0 or
+        (y.mod(100) > 0 and y.mod(4) = 0)
+    pre yearIsValid: y <> null and y >= 2000
     post returnValueIsAccurate: result = (y.mod(400) = 0 or
         (y.mod(100) > 0 and y.mod(4) = 0)) -- = true
 
@@ -243,11 +314,11 @@ operations
     pre paramaterNotNull: v <> null
     post returnValueIsAccurate: result = (v >= 1 and v <= 12)
 
-    yearValid(v: Integer): Boolean = v > 1900
+    yearValid(v: Integer): Boolean = v >= 2000
     pre paramaterNotNull: v <> null
-    post returnValueIsAccurate: result = v > 1900
+    post returnValueIsAccurate: result = (v >= 2000)
 
-    dayAndMonthValid(d: Integer, m: Integer): Boolean =
+    dayAndMonthValid(m: Integer, d: Integer): Boolean =
         (Set{4, 6, 9, 11}->includes(m) implies d <= 30) and
         (Set{1, 3, 5, 7, 8, 10, 12}->includes(m) implies d <= 31)
     pre dayIsValid: dayValid(d)
@@ -256,7 +327,7 @@ operations
         ((Set{4, 6, 9, 11}->includes(m) implies d < 31) and
         (Set{1, 3, 5, 7, 8, 10, 12}->includes(m) implies d < 32))
 
-    febValid(d: Integer, y: Integer): Boolean =
+    febValid(y: Integer, d: Integer): Boolean =
         (isLeapYear(y) implies d <= 29) and
         (not isLeapYear(y) implies d <= 28)
     pre dayIsValid: dayValid(d)
@@ -265,13 +336,26 @@ operations
         ((isLeapYear(y) implies d <= 29) and
         (not isLeapYear(y) implies d <= 28))
 
-    isValid(d: Integer, m: Integer, y: Integer,
+    isValid(y: Integer, m: Integer, d: Integer,
     hr: Integer, min: Integer, sec: Integer): Boolean =
         dayValid(d) and monthValid(m) and yearValid(y) and
-        dayAndMonthValid(d, m) and (m = 2 implies febValid(d, y)) and
+        dayAndMonthValid(m, d) and (m = 2 implies febValid(y, d)) and
         hourValid(hr) and minuteValid(min) and secondValid(sec)
 
-    isSelfValid(): Boolean = isValid(day, month, year, hour, minute, second)
+    isSelfValid(): Boolean = isValid(year, month, day, hour, minute, second)
+
+    --------------------------------Operations--------------------------------
+
+    difference(d: DateTime): Integer =
+        secondsSinceEposh - d.secondsSinceEposh
+    pre bothAreValid: isSelfValid() and d.isSelfValid()
+    post resultIsCorrect: result =
+        (secondsSinceEposh - d.secondsSinceEposh)
+
+    differenceInDays(d: DateTime): Real = (difference(d) / TO_SEC.d)
+    pre bothAreValid: isSelfValid() and d.isSelfValid()
+    post resultIsCorrect: result =
+        ((secondsSinceEposh - d.secondsSinceEposh) / TO_SEC.d)
 end -- DateTime Class
 
 class Period
@@ -418,6 +502,36 @@ operations
     pre selfIsValid: isSelfValid()
     post mutationSuccess: getStart() = interval@pre->at(1) and getEnd() = s
     post selfStillValid: isValid(getStart(), getEnd())
+
+    --------------------------------Operations--------------------------------
+
+    duration(): Integer =
+        if getEnd() <> null then
+            getEnd().difference(getStart())
+        else
+            getStart().now.difference(getStart())
+        endif
+    pre selfIsValid: isSelfValid()
+    post resultIsCorrect: result =
+        if getEnd() <> null then
+            getEnd().difference(getStart())
+        else
+            getStart().now.difference(getStart())
+        endif
+
+    durationInDays(): Real =
+        if getEnd() <> null then
+            getEnd().differenceInDays(getStart())
+        else
+            getStart().getNow().differenceInDays(getStart())
+        endif
+    pre selfIsValid: isSelfValid()
+    post resultIsCorrect: result =
+        if getEnd() <> null then
+            getEnd().differenceInDays(getStart())
+        else
+            getStart().getNow().differenceInDays(getStart())
+        endif
 end -- Period Class
 
 class Player < Identifiable, Observer
@@ -425,7 +539,7 @@ attributes
     username: String
     email: String
     dob: DateTime
-    score: Integer -- derived
+    score: Integer init: 500
     status: PlayerStatus
     state: ProfileState init: #PRIVATE
 operations
@@ -435,8 +549,12 @@ operations
     -- Generates notifications based on what event occured
     --update(o: Observable)
 
-    -- update helper function for match events
+    -- Updates the player's score if a ranked match was completed or abandoned
     --updateHelperMatch(o: Match)
+    -- for the body we could generate a decimal value based on the difference
+    -- in the players' ranks, the time it took to end the game, average points
+    -- per play, average time per play
+    -- we could cap the amount your score increases to +/- 25 points
 
     -- update helper function for chat events
     --updateHelperChat(o: Chat)
@@ -631,9 +749,13 @@ attributes
     startCol: Integer
     endRow: Integer
     endCol: Integer
-    score: Integer --/score: Integer
-    time: Integer -- Time in seconds between match start and this play
+    score: Integer --derived: calcScore
+    time: DateTime
     bonusApplied: Boolean
+operations
+    -- Calculates the points accumulated by the placement of the tiles on the
+    -- board
+    --calcScore
 end -- Play Class
 
 class Board
@@ -686,21 +808,28 @@ class Match < Identifiable, Observer, Observable
 attributes
     type: MatchType
     timed: Boolean
-    time: Integer -- Elapsed seconds
-    date: DateTime
+    duration: Period
     category: Category
     status: MatchStatus init: #INPROGRESS
-operations
-    -- update
+    score: Integer init: 100
 operations
     --getters
+    --update(o: Observable)
+
+    -- Checks if the player is currently has the match open and creates a
+    -- notification if they don't or signals to the players that the match
+    -- is complete
+    --updateHelperPlay(o: Play)
 end -- Match Class
 
 class Leaderboard < Observer
 operations
-    -- update
-operations
     --getters
+
+    --update(o: Observable)
+
+    -- Updates the players' ranks once a ranked match is complete
+    --updateHelperMatch(o: Match)
 end -- Leaderboard Class
 
 associationclass Rank
@@ -905,7 +1034,10 @@ context Player
             i = matchHistory->indexOf(m),
             prevMatches = matchHistory->subOrderedSet(1, i - 1)
         in matchHistory->first() <> m implies
-            prevMatches->forAll(prevM | prevM.date.before(m.date)))
+            prevMatches->forAll(prevM |
+                prevM.duration.getStart().before(m.duration.getStart())
+            )
+    )
 
     -- Blocked players can't be your friends
     inv notFriendAndBlocked:
@@ -935,7 +1067,9 @@ context Player
     inv noMatchesWithBlockedPlayers:
         block[player]->select(b | b.status = #BLOCKED)->forAll(b |
             not matchHistory->exists(m |
-                m.players->includes(b.blocked) and m.date.after(b.date)))
+                m.players->includes(b.blocked) and
+                m.duration.getStart().after(b.date))
+        )
 
     -- There must not be any pending friend or message requests between a
     -- given pair of players if there exists an accepted request of the same
@@ -1049,9 +1183,13 @@ context Chat
 
 context ChatState
     -- All messages from the other player before lastOpened date must be seen
-    inv noUnseenMsgsBeforeLastOpened:
-        chatRooms.messages->forAll(m | (m.sentDate.before(lastOpened) and
-            m.msgSender <> participants) implies m.status = #SEEN)
+    inv msgsStatusAndLastOpenedConsistent:
+        chatRooms.messages->forAll(m |
+            m.msgSender <> participants implies (
+                (m.status = #UNSEEN and m.sentDate.after(lastOpened)) or
+                (m.status = #SEEN and (not m.seenDate.after(lastOpened)))
+            )
+        )
 -- End ChatState Constraints
 
 context Message
@@ -1107,8 +1245,8 @@ context MatchRequest
 
     -- Accepted match type must match requested match type
     inv matchDataMatchesMatchReqData: status = #ACCEPTED implies
-        (matchType = match.type and activePeriod.oclIsTypeOf(Period) and
-        timed = match.timed and activePeriod.getStart() = match.date)
+        (matchType = match.type and timed = match.timed and
+        activePeriod.getStart() = match.duration.getStart())
 -- End MatchRequest Constraints
 
 context Report
@@ -1421,11 +1559,11 @@ context Dictionary
 -- End Dictionary Constraints
 
 context Match
-    -- Each match must have a date
-    inv hasDate: date.oclIsKindOf(DateTime)
+    -- Each match must have a duration
+    inv hasDuration: duration.oclIsKindOf(Period)
 
     -- Only unranked matches may be untimed
-    inv noUntimedRankedMatches: (type = #RANKED) implies timed
+    inv noUntimedRankedMatches: type = #RANKED implies timed
 
     -- Plays must be ordered
     inv playsAreOrdered: playHistory->forAll(p |
@@ -1433,7 +1571,7 @@ context Match
             i = playHistory->indexOf(p),
             previousPlays = playHistory->subOrderedSet(1, i - 1)
         in playHistory->first() <> p implies
-            previousPlays->forAll(prevP | prevP.time < p.time))
+            previousPlays->forAll(prevP | prevP.time.before(p.time)))
 
     -- First word must be spelt in the center
     inv firstPlayStartsAtCentre:
@@ -1539,19 +1677,19 @@ context Match
 
     -- Once a player quits the match must end
     inv matchEndIfQuit:
-        (playHistory->select(p | p.type = #QUIT)->size() <= 1 implies
-            playHistory->last().type = #QUIT) and
-        playHistory->last().type = #QUIT implies status = #ABANDONED
+        playHistory->exists(p | p.type = #QUIT) implies status = #ABANDONED
 
     -- Once a match ends no additional plays can be made
     inv noPlaysAfterMatchEnd:
-        status = #ABANDONED implies playHistory->last().type = #QUIT and
-        status = #COMPLETE implies playHistory->forAll(p | p.time < time)
+        let
+            lp = playHistory->last()
+        in (status = #ABANDONED implies lp.type = #QUIT) and
+            (Set{#COMPLETE, #ABANDONED}->includes(status) implies
+                lp.time.equals(duration.getEnd()))
 
-    -- Matches can't last longer than 5 min
-    inv matchEndTimeValid:
-        (timed and Set{#COMPLETE, #ABANDONED}->includes(status)) implies
-            (time > 0 and time < 300) -- 5 min
+    -- Timed matches can't last longer than 5 min
+    inv timedMatchDurationValid: timed implies
+        (duration.duration() > 0 and duration.duration() < 300) -- 5 min
 -- End Match Constraints
 
 context Leaderboard
