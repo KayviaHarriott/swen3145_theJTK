@@ -2,7 +2,7 @@
 --! @authors: Jason Hunter, Kayvia Harriott, Tashna-Gail Williams
 --! Created on: 2021-11-02
 --! @version: 0.4.2
---! Last Updated: 2021-11-10 21:23:55
+--! Last Updated: 2021-11-11 04:43:01
 ------------------------------------------------------------------------------
 
 -- PLEASE DON'T EDIT THIS FILE DIRECTLY, COPY AND PASTE IT AND WORK ON THAT
@@ -20,57 +20,33 @@ reset
 !insert (dict,dict) into OnlyDict
 
 !new Word('word')
-!l := create Letter()
-!l.letter := 'w'
-!insert (word, l) into Spelling
-!l := create Letter()
-!l.letter := 'o'
-!insert (word, l) into Spelling
-!l := create Letter()
-!l.letter := 'r'
-!insert (word, l) into Spelling
-!l := create Letter()
-!l.letter := 'd'
-!insert (word, l) into Spelling
-
-!new Word('do')
-!l := create Letter()
-!l.letter := 'd'
-!insert (do, l) into Spelling
-!l := create Letter()
-!l.letter := 'o'
-!insert (do, l) into Spelling
+!spelling := Sequence{'W', 'O', 'R', 'D'}
+!for c in spelling do l := new Letter(); l.letter := c; insert (word, l) into Spelling; end;
+!insert (dict, word) into ValidWord
 
 !new Word('door')
-!l := create Letter()
-!l.letter := 'd'
-!insert (door, l) into Spelling
-!l := create Letter()
-!l.letter := 'o'
-!insert (door, l) into Spelling
-!l := create Letter()
-!l.letter := 'o'
-!insert (door, l) into Spelling
-!l := create Letter()
-!l.letter := 'r'
-!insert (door, l) into Spelling
+!spelling := Sequence{'D', 'O', 'O', 'R'}
+!for c in spelling do l := new Letter(); l.letter := c; insert (door, l) into Spelling; end;
+!insert (dict, door) into ValidWord
 
-!new Word('deer')
-!l := create Letter()
-!l.letter := 'd'
-!insert (deer, l) into Spelling
-!l := create Letter()
-!l.letter := 'e'
-!insert (deer, l) into Spelling
-!l := create Letter()
-!l.letter := 'e'
-!insert (deer, l) into Spelling
-!l := create Letter()
-!l.letter := 'r'
-!insert (deer, l) into Spelling
+!new Word('stream')
+!spelling := Sequence{'S', 'T', 'R', 'E', 'A', 'M'}
+!for c in spelling do l := new Letter(); l.letter := c; insert (stream, l) into Spelling; end;
+!insert (dict, stream) into ValidWord
+
+!new Word('ate')
+!spelling := Sequence{'A', 'T', 'E'}
+!for c in spelling do l := new Letter(); l.letter := c; insert (ate, l) into Spelling; end;
+!insert (dict, ate) into ValidWord
+
+!new Word('ao')
+!spelling := Sequence{'A', 'O'}
+!for c in spelling do l := new Letter(); l.letter := c; insert (ao, l) into Spelling; end;
+!insert (dict, ao) into ValidWord
 
 !new DateTime('rightNow')
 !rightNow.initialise(2021, 10, 22, 12, 59, 59)
+!insert (rightNow, rightNow) into CurrentTime
 
 !new Player('player1')
 !player1.id := 'player1'
@@ -97,11 +73,11 @@ reset
 --------Friend Request between Players 1 and 2
 
 !new DateTime('frReq1SentDate')
-!insert (frReq1SentDate, rightNow) into CurrentDate
+!insert (frReq1SentDate, rightNow) into CurrentTime
 !frReq1SentDate.initialise(2021, 10, 20, 18, 05, 13)
 
 !new DateTime('frReq1AddrDate')
-!insert (frReq1AddrDate, rightNow) into CurrentDate
+!insert (frReq1AddrDate, rightNow) into CurrentTime
 !frReq1AddrDate.initialise(2021, 10, 21, 6, 05, 21)
 
 !new Period('frReq1Period')
@@ -122,44 +98,53 @@ reset
 !new ChatState('chat1p1') between (chatp1p2,player1)
 !new ChatState('chat1p2') between (chatp1p2,player2)
 
-!new DateTime('msg1Date')
-!insert (msg1Date, rightNow) into CurrentDate
-!msg1Date.initialise(2021, 10, 22, 12, 35, 06)
+!new DateTime('msg1Date1')
+!insert (msg1Date1, rightNow) into CurrentTime
+!msg1Date1.initialise(2021, 10, 22, 12, 35, 06)
+
+!new DateTime('msg1Date2')
+!insert (msg1Date2, rightNow) into CurrentTime
+!msg1Date2.initialise(2021, 10, 22, 12, 35, 26)
 
 !new Message('msg1p1p2')
 !msg1p1p2.id := 'msg1'
 !msg1p1p2.message := 'This is a test'
-!msg1p1p2.sentDate := msg1Date
+!msg1p1p2.sentDate := msg1Date1
+!msg1p1p2.seenDate := msg1Date2
 !msg1p1p2.status := #SEEN
 !insert (chatp1p2,msg1p1p2) into PlayerChat
-!insert (player1,msg1p1p2) into RecievedMessage
 !insert (player2,msg1p1p2) into SentMessage
+!insert (player1,msg1p1p2) into RecievedMessage
 
-!chat1p1.lastOpened := msg1Date
+!new DateTime('msg2Date1')
+!insert (msg2Date1, rightNow) into CurrentTime
+!msg2Date1.initialise(2021, 10, 22, 12, 35, 45)
 
-!new DateTime('msg2Date')
-!insert (msg2Date, rightNow) into CurrentDate
-!msg2Date.initialise(2021, 10, 22, 12, 35, 45)
+!new DateTime('msg2Date2')
+!insert (msg2Date2, rightNow) into CurrentTime
+!msg2Date2.initialise(2021, 10, 22, 12, 35, 59)
 
 !new Message('msg2p1p2')
 !msg2p1p2.id := 'msg2'
 !msg2p1p2.message := 'tset a si sihT'
-!msg2p1p2.sentDate := msg2Date
-!msg1p1p2.status := #SEEN
+!msg2p1p2.sentDate := msg2Date1
+!msg2p1p2.seenDate := msg2Date2
+!msg2p1p2.status := #SEEN
 !insert (chatp1p2,msg2p1p2) into PlayerChat
-!insert (player2,msg2p1p2) into RecievedMessage
 !insert (player1,msg2p1p2) into SentMessage
+!insert (player2,msg2p1p2) into RecievedMessage
 
-!chat1p2.lastOpened := msg2Date
+!chat1p1.lastOpened := msg2Date1
+!chat1p2.lastOpened := msg2Date2
 
 --------Match Request between Players 1 and 2
 
 !new DateTime('matchReq1SentDate')
-!insert (matchReq1SentDate, rightNow) into CurrentDate
+!insert (matchReq1SentDate, rightNow) into CurrentTime
 !matchReq1SentDate.initialise(2021, 10, 22, 12, 36, 12)
 
 !new DateTime('matchReq1AddrDate')
-!insert (matchReq1AddrDate, rightNow) into CurrentDate
+!insert (matchReq1AddrDate, rightNow) into CurrentTime
 !matchReq1AddrDate.initialise(2021, 10, 22, 12, 37, 21)
 
 !new Period('matchReq1Period')
@@ -190,730 +175,44 @@ reset
 !match1.status := #INPROGRESS
 !insert (match1, dict) into WordCheck
 !insert (matchReq1,match1) into RequestMatch
-!new Rack('rack1p2') between (player2,match1)
-!new Rack('rack2p1') between (player1,match1)
-!insert
 
 !new Board('board1')
 !insert (match1,board1) into MatchGameBoard
+!size := Sequence{1..15}
+!for r in size do for c in size do s := new Slot('b1R' + r.toString() + 'C' + c.toString()); insert (board1{r, c}, s) into Grid; end; end;
+
 !new LetterBag('lbag1')
 !insert (lbag1,board1) into LetterOptions
-
--- A Tiles
-    !l := create Letter()
-    !l.letter := 'a'
-    !insert (door, l) into Spelling
-    !t := create Tile()
-    !t.letter := l
-    !insert (lbag1, t) into Stock
-
-    !l := create Letter()
-    !l.letter := 'a'
-    !insert (door, l) into Spelling
-    !t := create Tile()
-    !t.letter := l
-    !insert (lbag1, t) into Stock
-
-    !l := create Letter()
-    !l.letter := 'a'
-    !insert (door, l) into Spelling
-    !t := create Tile()
-    !t.letter := l
-    !insert (lbag1, t) into Stock
-
-    !l := create Letter()
-    !l.letter := 'a'
-    !insert (door, l) into Spelling
-    !t := create Tile()
-    !t.letter := l
-    !insert (lbag1, t) into Stock
-
-    !l := create Letter()
-    !l.letter := 'a'
-    !insert (door, l) into Spelling
-    !t := create Tile()
-    !t.letter := l
-    !insert (lbag1, t) into Stock
-
-    !l := create Letter()
-    !l.letter := 'a'
-    !insert (door, l) into Spelling
-    !t := create Tile()
-    !t.letter := l
-    !insert (lbag1, t) into Stock
-
-    !l := create Letter()
-    !l.letter := 'a'
-    !insert (door, l) into Spelling
-    !t := create Tile()
-    !t.letter := l
-    !insert (lbag1, t) into Stock
-
-    !l := create Letter()
-    !l.letter := 'a'
-    !insert (door, l) into Spelling
-    !t := create Tile()
-    !t.letter := l
-    !insert (lbag1, t) into Stock
-
-    !l := create Letter()
-    !l.letter := 'a'
-    !insert (door, l) into Spelling
-    !t := create Tile()
-    !t.letter := l
-    !insert (lbag1, t) into Stock
-
--- B Tiles
-    !l := create Letter()
-    !l.letter := 'b'
-    !insert (door, l) into Spelling
-    !t := create Tile()
-    !t.letter := l
-    !insert (lbag1, t) into Stock
-
-    !l := create Letter()
-    !l.letter := 'b'
-    !insert (door, l) into Spelling
-    !t := create Tile()
-    !t.letter := l
-    !insert (lbag1, t) into Stock
-
--- C Tiles
-    !l := create Letter()
-    !l.letter := 'c'
-    !insert (door, l) into Spelling
-    !t := create Tile()
-    !t.letter := l
-    !insert (lbag1, t) into Stock
-
-    !l := create Letter()
-    !l.letter := 'c'
-    !insert (door, l) into Spelling
-    !t := create Tile()
-    !t.letter := l
-    !insert (lbag1, t) into Stock
-
--- D Tiles
-    !l := create Letter()
-    !l.letter := 'd'
-    !insert (door, l) into Spelling
-    !t := create Tile()
-    !t.letter := l
-    !insert (lbag1, t) into Stock
-
-    !l := create Letter()
-    !l.letter := 'd'
-    !insert (door, l) into Spelling
-    !t := create Tile()
-    !t.letter := l
-    !insert (lbag1, t) into Stock
-
-    !l := create Letter()
-    !l.letter := 'd'
-    !insert (door, l) into Spelling
-    !t := create Tile()
-    !t.letter := l
-    !insert (lbag1, t) into Stock
-
-    !l := create Letter()
-    !l.letter := 'd'
-    !insert (door, l) into Spelling
-    !t := create Tile()
-    !t.letter := l
-    !insert (lbag1, t) into Stock
-
--- E Tiles
-    !l := create Letter()
-    !l.letter := 'e'
-    !insert (door, l) into Spelling
-    !t := create Tile()
-    !t.letter := l
-    !insert (lbag1, t) into Stock
-
-    !l := create Letter()
-    !l.letter := 'e'
-    !insert (door, l) into Spelling
-    !t := create Tile()
-    !t.letter := l
-    !insert (lbag1, t) into Stock
-
-    !l := create Letter()
-    !l.letter := 'e'
-    !insert (door, l) into Spelling
-    !t := create Tile()
-    !t.letter := l
-    !insert (lbag1, t) into Stock
-
-    !l := create Letter()
-    !l.letter := 'e'
-    !insert (door, l) into Spelling
-    !t := create Tile()
-    !t.letter := l
-    !insert (lbag1, t) into Stock
-
-    !l := create Letter()
-    !l.letter := 'e'
-    !insert (door, l) into Spelling
-    !t := create Tile()
-    !t.letter := l
-    !insert (lbag1, t) into Stock
-
-    !l := create Letter()
-    !l.letter := 'e'
-    !insert (door, l) into Spelling
-    !t := create Tile()
-    !t.letter := l
-    !insert (lbag1, t) into Stock
-
-    !l := create Letter()
-    !l.letter := 'e'
-    !insert (door, l) into Spelling
-    !t := create Tile()
-    !t.letter := l
-    !insert (lbag1, t) into Stock
-
-    !l := create Letter()
-    !l.letter := 'e'
-    !insert (door, l) into Spelling
-    !t := create Tile()
-    !t.letter := l
-    !insert (lbag1, t) into Stock
-
-    !l := create Letter()
-    !l.letter := 'e'
-    !insert (door, l) into Spelling
-    !t := create Tile()
-    !t.letter := l
-    !insert (lbag1, t) into Stock
-
-    !l := create Letter()
-    !l.letter := 'e'
-    !insert (door, l) into Spelling
-    !t := create Tile()
-    !t.letter := l
-    !insert (lbag1, t) into Stock
-
-    !l := create Letter()
-    !l.letter := 'e'
-    !insert (door, l) into Spelling
-    !t := create Tile()
-    !t.letter := l
-    !insert (lbag1, t) into Stock
-
-    !l := create Letter()
-    !l.letter := 'e'
-    !insert (door, l) into Spelling
-    !t := create Tile()
-    !t.letter := l
-    !insert (lbag1, t) into Stock
-
--- F Tiles
-    !l := create Letter()
-    !l.letter := 'f'
-    !insert (door, l) into Spelling
-    !t := create Tile()
-    !t.letter := l
-    !insert (lbag1, t) into Stock
-
-    !l := create Letter()
-    !l.letter := 'f'
-    !insert (door, l) into Spelling
-    !t := create Tile()
-    !t.letter := l
-    !insert (lbag1, t) into Stock
-
--- G Tiles
-    !l := create Letter()
-    !l.letter := 'g'
-    !insert (door, l) into Spelling
-    !t := create Tile()
-    !t.letter := l
-    !insert (lbag1, t) into Stock
-
-    !l := create Letter()
-    !l.letter := 'g'
-    !insert (door, l) into Spelling
-    !t := create Tile()
-    !t.letter := l
-    !insert (lbag1, t) into Stock
-
-    !l := create Letter()
-    !l.letter := 'g'
-    !insert (door, l) into Spelling
-    !t := create Tile()
-    !t.letter := l
-    !insert (lbag1, t) into Stock
-
--- H Tiles
-    !l := create Letter()
-    !l.letter := 'h'
-    !insert (door, l) into Spelling
-    !t := create Tile()
-    !t.letter := l
-    !insert (lbag1, t) into Stock
-
-    !l := create Letter()
-    !l.letter := 'h'
-    !insert (door, l) into Spelling
-    !t := create Tile()
-    !t.letter := l
-    !insert (lbag1, t) into Stock
-
--- I Tiles
-    !l := create Letter()
-    !l.letter := 'i'
-    !insert (door, l) into Spelling
-    !t := create Tile()
-    !t.letter := l
-    !insert (lbag1, t) into Stock
-
-    !l := create Letter()
-    !l.letter := 'i'
-    !insert (door, l) into Spelling
-    !t := create Tile()
-    !t.letter := l
-    !insert (lbag1, t) into Stock
-
-    !l := create Letter()
-    !l.letter := 'i'
-    !insert (door, l) into Spelling
-    !t := create Tile()
-    !t.letter := l
-    !insert (lbag1, t) into Stock
-
-    !l := create Letter()
-    !l.letter := 'i'
-    !insert (door, l) into Spelling
-    !t := create Tile()
-    !t.letter := l
-    !insert (lbag1, t) into Stock
-
-    !l := create Letter()
-    !l.letter := 'i'
-    !insert (door, l) into Spelling
-    !t := create Tile()
-    !t.letter := l
-    !insert (lbag1, t) into Stock
-
-    !l := create Letter()
-    !l.letter := 'i'
-    !insert (door, l) into Spelling
-    !t := create Tile()
-    !t.letter := l
-    !insert (lbag1, t) into Stock
-
-    !l := create Letter()
-    !l.letter := 'i'
-    !insert (door, l) into Spelling
-    !t := create Tile()
-    !t.letter := l
-    !insert (lbag1, t) into Stock
-
-    !l := create Letter()
-    !l.letter := 'i'
-    !insert (door, l) into Spelling
-    !t := create Tile()
-    !t.letter := l
-    !insert (lbag1, t) into Stock
-
-    !l := create Letter()
-    !l.letter := 'i'
-    !insert (door, l) into Spelling
-    !t := create Tile()
-    !t.letter := l
-    !insert (lbag1, t) into Stock
-
--- J Tiles
-    !l := create Letter()
-    !l.letter := 'j'
-    !insert (door, l) into Spelling
-    !t := create Tile()
-    !t.letter := l
-    !insert (lbag1, t) into Stock
-
--- K Tiles
-    !l := create Letter()
-    !l.letter := 'k'
-    !insert (door, l) into Spelling
-    !t := create Tile()
-    !t.letter := l
-    !insert (lbag1, t) into Stock
-
--- L Tiles
-    !l := create Letter()
-    !l.letter := 'l'
-    !insert (door, l) into Spelling
-    !t := create Tile()
-    !t.letter := l
-    !insert (lbag1, t) into Stock
-
-    !l := create Letter()
-    !l.letter := 'l'
-    !insert (door, l) into Spelling
-    !t := create Tile()
-    !t.letter := l
-    !insert (lbag1, t) into Stock
-
-    !l := create Letter()
-    !l.letter := 'l'
-    !insert (door, l) into Spelling
-    !t := create Tile()
-    !t.letter := l
-    !insert (lbag1, t) into Stock
-
-    !l := create Letter()
-    !l.letter := 'l'
-    !insert (door, l) into Spelling
-    !t := create Tile()
-    !t.letter := l
-    !insert (lbag1, t) into Stock
-
--- M Tiles
-    !l := create Letter()
-    !l.letter := 'm'
-    !insert (door, l) into Spelling
-    !t := create Tile()
-    !t.letter := l
-    !insert (lbag1, t) into Stock
-
-    !l := create Letter()
-    !l.letter := 'm'
-    !insert (door, l) into Spelling
-    !t := create Tile()
-    !t.letter := l
-    !insert (lbag1, t) into Stock
-
--- N Tiles
-    !l := create Letter()
-    !l.letter := 'n'
-    !insert (door, l) into Spelling
-    !t := create Tile()
-    !t.letter := l
-    !insert (lbag1, t) into Stock
-
-    !l := create Letter()
-    !l.letter := 'n'
-    !insert (door, l) into Spelling
-    !t := create Tile()
-    !t.letter := l
-    !insert (lbag1, t) into Stock
-
-    !l := create Letter()
-    !l.letter := 'n'
-    !insert (door, l) into Spelling
-    !t := create Tile()
-    !t.letter := l
-    !insert (lbag1, t) into Stock
-
-    !l := create Letter()
-    !l.letter := 'n'
-    !insert (door, l) into Spelling
-    !t := create Tile()
-    !t.letter := l
-    !insert (lbag1, t) into Stock
-
-    !l := create Letter()
-    !l.letter := 'n'
-    !insert (door, l) into Spelling
-    !t := create Tile()
-    !t.letter := l
-    !insert (lbag1, t) into Stock
-
-    !l := create Letter()
-    !l.letter := 'n'
-    !insert (door, l) into Spelling
-    !t := create Tile()
-    !t.letter := l
-    !insert (lbag1, t) into Stock
-
--- O Tiles
-    !l := create Letter()
-    !l.letter := 'o'
-    !insert (door, l) into Spelling
-    !t := create Tile()
-    !t.letter := l
-    !insert (lbag1, t) into Stock
-
-    !l := create Letter()
-    !l.letter := 'o'
-    !insert (door, l) into Spelling
-    !t := create Tile()
-    !t.letter := l
-    !insert (lbag1, t) into Stock
-
-    !l := create Letter()
-    !l.letter := 'o'
-    !insert (door, l) into Spelling
-    !t := create Tile()
-    !t.letter := l
-    !insert (lbag1, t) into Stock
-
-    !l := create Letter()
-    !l.letter := 'o'
-    !insert (door, l) into Spelling
-    !t := create Tile()
-    !t.letter := l
-    !insert (lbag1, t) into Stock
-
-    !l := create Letter()
-    !l.letter := 'o'
-    !insert (door, l) into Spelling
-    !t := create Tile()
-    !t.letter := l
-    !insert (lbag1, t) into Stock
-
-    !l := create Letter()
-    !l.letter := 'o'
-    !insert (door, l) into Spelling
-    !t := create Tile()
-    !t.letter := l
-    !insert (lbag1, t) into Stock
-
-    !l := create Letter()
-    !l.letter := 'o'
-    !insert (door, l) into Spelling
-    !t := create Tile()
-    !t.letter := l
-    !insert (lbag1, t) into Stock
-
-    !l := create Letter()
-    !l.letter := 'o'
-    !insert (door, l) into Spelling
-    !t := create Tile()
-    !t.letter := l
-    !insert (lbag1, t) into Stock
-
--- P Tiles
-    !l := create Letter()
-    !l.letter := 'p'
-    !insert (door, l) into Spelling
-    !t := create Tile()
-    !t.letter := l
-    !insert (lbag1, t) into Stock
-
-    !l := create Letter()
-    !l.letter := 'p'
-    !insert (door, l) into Spelling
-    !t := create Tile()
-    !t.letter := l
-    !insert (lbag1, t) into Stock
-
--- Q Tiles
-    !l := create Letter()
-    !l.letter := 'q'
-    !insert (door, l) into Spelling
-    !t := create Tile()
-    !t.letter := l
-    !insert (lbag1, t) into Stock
-
--- R Tiles
-    !l := create Letter()
-    !l.letter := 'r'
-    !insert (door, l) into Spelling
-    !t := create Tile()
-    !t.letter := l
-    !insert (lbag1, t) into Stock
-
-    !l := create Letter()
-    !l.letter := 'r'
-    !insert (door, l) into Spelling
-    !t := create Tile()
-    !t.letter := l
-    !insert (lbag1, t) into Stock
-
-    !l := create Letter()
-    !l.letter := 'r'
-    !insert (door, l) into Spelling
-    !t := create Tile()
-    !t.letter := l
-    !insert (lbag1, t) into Stock
-
-    !l := create Letter()
-    !l.letter := 'r'
-    !insert (door, l) into Spelling
-    !t := create Tile()
-    !t.letter := l
-    !insert (lbag1, t) into Stock
-
-    !l := create Letter()
-    !l.letter := 'r'
-    !insert (door, l) into Spelling
-    !t := create Tile()
-    !t.letter := l
-    !insert (lbag1, t) into Stock
-
-    !l := create Letter()
-    !l.letter := 'r'
-    !insert (door, l) into Spelling
-    !t := create Tile()
-    !t.letter := l
-    !insert (lbag1, t) into Stock
-
--- S Tiles
-    !l := create Letter()
-    !l.letter := 's'
-    !insert (door, l) into Spelling
-    !t := create Tile()
-    !t.letter := l
-    !insert (lbag1, t) into Stock
-
-    !l := create Letter()
-    !l.letter := 's'
-    !insert (door, l) into Spelling
-    !t := create Tile()
-    !t.letter := l
-    !insert (lbag1, t) into Stock
-
-    !l := create Letter()
-    !l.letter := 's'
-    !insert (door, l) into Spelling
-    !t := create Tile()
-    !t.letter := l
-    !insert (lbag1, t) into Stock
-
-    !l := create Letter()
-    !l.letter := 's'
-    !insert (door, l) into Spelling
-    !t := create Tile()
-    !t.letter := l
-    !insert (lbag1, t) into Stock
-
--- T Tiles
-    !l := create Letter()
-    !l.letter := 't'
-    !insert (door, l) into Spelling
-    !t := create Tile()
-    !t.letter := l
-    !insert (lbag1, t) into Stock
-
-    !l := create Letter()
-    !l.letter := 't'
-    !insert (door, l) into Spelling
-    !t := create Tile()
-    !t.letter := l
-    !insert (lbag1, t) into Stock
-
-    !l := create Letter()
-    !l.letter := 't'
-    !insert (door, l) into Spelling
-    !t := create Tile()
-    !t.letter := l
-    !insert (lbag1, t) into Stock
-
-    !l := create Letter()
-    !l.letter := 't'
-    !insert (door, l) into Spelling
-    !t := create Tile()
-    !t.letter := l
-    !insert (lbag1, t) into Stock
-
-    !l := create Letter()
-    !l.letter := 't'
-    !insert (door, l) into Spelling
-    !t := create Tile()
-    !t.letter := l
-    !insert (lbag1, t) into Stock
-
-    !l := create Letter()
-    !l.letter := 't'
-    !insert (door, l) into Spelling
-    !t := create Tile()
-    !t.letter := l
-    !insert (lbag1, t) into Stock
-
--- U Tiles
-    !l := create Letter()
-    !l.letter := 'u'
-    !insert (door, l) into Spelling
-    !t := create Tile()
-    !t.letter := l
-    !insert (lbag1, t) into Stock
-
-    !l := create Letter()
-    !l.letter := 'u'
-    !insert (door, l) into Spelling
-    !t := create Tile()
-    !t.letter := l
-    !insert (lbag1, t) into Stock
-
-    !l := create Letter()
-    !l.letter := 'u'
-    !insert (door, l) into Spelling
-    !t := create Tile()
-    !t.letter := l
-    !insert (lbag1, t) into Stock
-
-    !l := create Letter()
-    !l.letter := 'u'
-    !insert (door, l) into Spelling
-    !t := create Tile()
-    !t.letter := l
-    !insert (lbag1, t) into Stock
-
--- V Tiles
-    !l := create Letter()
-    !l.letter := 'v'
-    !insert (door, l) into Spelling
-    !t := create Tile()
-    !t.letter := l
-    !insert (lbag1, t) into Stock
-
-    !l := create Letter()
-    !l.letter := 'v'
-    !insert (door, l) into Spelling
-    !t := create Tile()
-    !t.letter := l
-    !insert (lbag1, t) into Stock
-
--- W Tiles
-    !l := create Letter()
-    !l.letter := 'w'
-    !insert (door, l) into Spelling
-    !t := create Tile()
-    !t.letter := l
-    !insert (lbag1, t) into Stock
-
-    !l := create Letter()
-    !l.letter := 'w'
-    !insert (door, l) into Spelling
-    !t := create Tile()
-    !t.letter := l
-    !insert (lbag1, t) into Stock
-
--- X Tiles
-    !l := create Letter()
-    !l.letter := 'x'
-    !insert (door, l) into Spelling
-    !t := create Tile()
-    !t.letter := l
-    !insert (lbag1, t) into Stock
-
--- Y Tiles
-    !l := create Letter()
-    !l.letter := 'y'
-    !insert (door, l) into Spelling
-    !t := create Tile()
-    !t.letter := l
-    !insert (lbag1, t) into Stock
-
-    !l := create Letter()
-    !l.letter := 'y'
-    !insert (door, l) into Spelling
-    !t := create Tile()
-    !t.letter := l
-    !insert (lbag1, t) into Stock
-
--- Z Tiles
-    !l := create Letter()
-    !l.letter := 'z'
-    !insert (door, l) into Spelling
-    !t := create Tile()
-    !t.letter := l
-    !insert (lbag1, t) into Stock
+!lval := Sequence{'A', 'B', 'C', 'D', 'E', 'F', 'G', 'H', 'I', 'J', 'K', 'L', 'M', 'N', 'O', 'P', 'Q', 'R', 'S', 'T', 'U', 'V', 'W', 'X', 'Y', 'Z'}
+!lcnt := Sequence{ 9 ,  2 ,  2 ,  4 , 12 ,  2 ,  3 ,  2 ,  9 ,  1 ,  1 ,  4 ,  2 ,  6 ,  8 ,  2 ,  1 ,  6 ,  4 ,  6 ,  4 ,  2 ,  2 ,  1 ,  2 ,  1}
+!tpt  := Sequence{ 1 ,  3 ,  3 ,  2 ,  1 ,  4 ,  2 ,  4 ,  1 ,  8 ,  5 ,  1 ,  3 ,  1 ,  1 ,  3 , 10 ,  1 ,  1 ,  1 ,  1 ,  4 ,  4 ,  8 ,  4 , 10}
+!for i in Sequence{1..26} do for j in Sequence{1..lcnt->at(i)} do l := new Letter(lval->at(i) + j.toString()); l.letter := lval->at(i); t := new Tile('m1Tile' + lval->at(i) + j.toString()); t.points := tpt->at(i); insert (t, l) into Mark; insert (lbag1, t) into Stock end; end;
+
+!new Rack('rack1p2') between (player2,match1)
+!insert (rack1p2, m1TileW1) into Hold
+!insert (rack1p2, m1TileO1) into Hold
+!insert (rack1p2, m1TileR1) into Hold
+!insert (rack1p2, m1TileD1) into Hold
+!insert (rack1p2, m1TileE1) into Hold
+!insert (rack1p2, m1TileE2) into Hold
+!insert (rack1p2, m1TileS1) into Hold
+!insert (rack1p2, m1TileN1) into Hold
+!insert (rack1p2, m1TileT1) into Hold
+
+!new Rack('rack2p1') between (player1,match1)
+!insert (rack2p1, m1TileD2) into Hold
+!insert (rack2p1, m1TileO2) into Hold
+!insert (rack2p1, m1TileR2) into Hold
+!insert (rack2p1, m1TileO3) into Hold
+!insert (rack2p1, m1TileE3) into Hold
+!insert (rack2p1, m1TileA1) into Hold
+!insert (rack2p1, m1TileI1) into Hold
+!insert (rack2p1, m1TileS2) into Hold
+!insert (rack2p1, m1TileA2) into Hold
 
 !new DateTime('m1Play1Time')
-!insert (m1Play1Time, rightNow) into CurrentDate
-!matchReq1AddrDate.initialise(2021, 10, 22, 12, 37, 31)
+!insert (m1Play1Time, rightNow) into CurrentTime
+!m1Play1Time.initialise(2021, 10, 22, 12, 37, 31)
 
 !new Play('play1')
 !play1.id := 'm1play1'
@@ -921,58 +220,145 @@ reset
 !play1.startRow := 8
 !play1.startCol := 8
 !play1.direction := #VERTICAL
-!play1.score := 7
 !play1.time := m1Play1Time
 !play1.bonusApplied := false
-!insert (Rack2,play1) into Played
+!insert (rack1p2,play1) into Played
 !insert (match1,play1) into Plays
+!insert (play1, word) into Spelt
+-- Remove from Rack
+!delete (rack1p2, m1TileW1) from Hold
+!delete (rack1p2, m1TileO1) from Hold
+!delete (rack1p2, m1TileR1) from Hold
+!delete (rack1p2, m1TileD1) from Hold
+-- Store reference in Play
+!insert (play1, m1TileW1) into Use
+!insert (play1, m1TileO1) into Use
+!insert (play1, m1TileR1) into Use
+!insert (play1, m1TileD1) into Use
+-- Fill the Slots on the Board
+!insert (b1R8C8, m1TileW1) into Fill
+!insert (b1R9C8, m1TileO1) into Fill
+!insert (b1R10C8, m1TileR1) into Fill
+!insert (b1R11C8, m1TileD1) into Fill
+-- Get new tiles from the LetterBag
+!delete (lbag1, m1TileA3) from Stock
+!insert (rack1p2, m1TileA3) into Hold
+!delete (lbag1, m1TileS3) from Stock
+!insert (rack1p2, m1TileS3) into Hold
+!delete (lbag1, m1TileM1) from Stock
+!insert (rack1p2, m1TileM1) into Hold
+!delete (lbag1, m1TileN2) from Stock
+!insert (rack1p2, m1TileN2) into Hold
 
 !new DateTime('m1Play2Time')
-!insert (m1Play2Time, rightNow) into CurrentDate
-!matchReq1AddrDate.initialise(2021, 10, 22, 12, 37, 39)
+!insert (m1Play2Time, rightNow) into CurrentTime
+!m1Play2Time.initialise(2021, 10, 22, 12, 37, 39)
 
 !new Play('play2')
 !play2.id := 'm1play2'
 !play2.type := #PLAY
-!play2.startRow := 9
-!play2.startCol := 6
+!play2.startRow := 11
+!play2.startCol := 8
 !play2.direction := #HORIZONTAL
-!play2.score := 13
 !play2.time := m1Play2Time
 !play2.bonusApplied := false
-!insert (Rack1,play2) into Played
+!insert (rack2p1,play2) into Played
 !insert (match1,play2) into Plays
+!insert (play2, door) into Spelt
+-- Remove from Rack
+!delete (rack2p1, m1TileO2) from Hold
+!delete (rack2p1, m1TileO3) from Hold
+!delete (rack2p1, m1TileR2) from Hold
+-- Store reference in Play
+!insert (play2, m1TileO2) into Use
+!insert (play2, m1TileO3) into Use
+!insert (play2, m1TileR2) into Use
+-- Fill the Slots on the Board
+!insert (b1R11C9, m1TileO2) into Fill
+!insert (b1R11C10, m1TileO3) into Fill
+!insert (b1R11C11, m1TileR2) into Fill
+-- Get new tiles from the LetterBag
+!delete (lbag1, m1TileK1) from Stock
+!insert (rack2p1, m1TileK1) into Hold
+!delete (lbag1, m1TileJ1) from Stock
+!insert (rack2p1, m1TileJ1) into Hold
+!delete (lbag1, m1TileL1) from Stock
+!insert (rack2p1, m1TileL1) into Hold
 
 !new DateTime('m1Play3Time')
-!insert (m1Play3Time, rightNow) into CurrentDate
-!matchReq1AddrDate.initialise(2021, 10, 22, 12, 37, 50)
+!insert (m1Play3Time, rightNow) into CurrentTime
+!m1Play3Time.initialise(2021, 10, 22, 12, 37, 50)
 
 !new Play('play3')
 !play3.id := 'm1play3'
 !play3.type := #PLAY
-!play3.startRow := 12
-!play3.startCol := 9
-!play3.direction := #HORIZONTAL
-!play3.score := 20
+!play3.startRow := 9
+!play3.startCol := 11
+!play3.direction := #VERTICAL
 !play3.time := m1Play3Time
 !play3.bonusApplied := false
-!insert (Rack2,play3) into Played
+!insert (rack1p2,play3) into Played
 !insert (match1,play3) into Plays
+!insert (play3, stream) into Spelt
+-- Remove from Rack
+!delete (rack1p2, m1TileS3) from Hold
+!delete (rack1p2, m1TileT1) from Hold
+!delete (rack1p2, m1TileE1) from Hold
+!delete (rack1p2, m1TileA3) from Hold
+!delete (rack1p2, m1TileM1) from Hold
+-- Store reference in Play
+!insert (play3, m1TileS3) into Use
+!insert (play3, m1TileT1) into Use
+!insert (play3, m1TileE1) into Use
+!insert (play3, m1TileA3) into Use
+!insert (play3, m1TileM1) into Use
+-- Fill the Slots on the Board
+!insert (b1R9C11, m1TileS3) into Fill
+!insert (b1R10C11, m1TileT1) into Fill
+!insert (b1R12C11, m1TileE1) into Fill
+!insert (b1R13C11, m1TileA3) into Fill
+!insert (b1R14C11, m1TileM1) into Fill
+-- Get new tiles from the LetterBag
+!delete (lbag1, m1TileA4) from Stock
+!insert (rack1p2, m1TileA4) into Hold
+!delete (lbag1, m1TileB1) from Stock
+!insert (rack1p2, m1TileB1) into Hold
+!delete (lbag1, m1TileI2) from Stock
+!insert (rack1p2, m1TileI2) into Hold
+!delete (lbag1, m1TileT2) from Stock
+!insert (rack1p2, m1TileT2) into Hold
+!delete (lbag1, m1TileU1) from Stock
+!insert (rack1p2, m1TileU1) into Hold
 
 !new DateTime('m1Play4Time')
-!insert (m1Play4Time, rightNow) into CurrentDate
-!matchReq1AddrDate.initialise(2021, 10, 22, 12, 38, 0)
+!insert (m1Play4Time, rightNow) into CurrentTime
+!m1Play4Time.initialise(2021, 10, 22, 12, 38, 0)
 
 !new Play('play4')
 !play4.id := 'm1play4'
 !play4.type := #PLAY
-!play4.startRow := 9
-!play4.startCol := 7
+!play4.startRow := 10
+!play4.startCol := 10
 !play4.direction := #HORIZONTAL
-!play4.score := 10
 !play4.time := m1Play4Time
 !play4.bonusApplied := false
-!insert (Rack1,play4) into Played
+!insert (rack2p1,play4) into Played
 !insert (match1,play4) into Plays
+!insert (play4, ate) into Spelt
+!insert (play4, ao) into Spelt
+-- Remove from Rack
+!delete (rack2p1, m1TileA1) from Hold
+!delete (rack2p1, m1TileE3) from Hold
+-- Store reference in Play
+!insert (play4, m1TileA1) into Use
+!insert (play4, m1TileE3) into Use
+-- Fill the Slots on the Board
+!insert (b1R10C10, m1TileA1) into Fill
+!insert (b1R10C12, m1TileE3) into Fill
+-- Get new tiles from the LetterBag
+!delete (lbag1, m1TileC1) from Stock
+!insert (rack2p1, m1TileC1) into Hold
+!delete (lbag1, m1TileE4) from Stock
+!insert (rack2p1, m1TileE4) into Hold
 
 check

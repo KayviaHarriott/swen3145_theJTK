@@ -2,7 +2,7 @@
 --! @authors: Jason Hunter, Kayvia Harriott, Tashna-Gail Williams
 --! Created on: 2021-10-11
 --! @version: 0.4.7
---! Last Updated: 2021-11-10 21:24:14
+--! Last Updated: 2021-11-11 04:43:16
 ------------------------------------------------------------------------------
 
 model scrumble
@@ -46,6 +46,7 @@ enum PlayDirection {HORIZONTAL, VERTICAL}
 --!     - plays don't extend off the board
 --!     - can't send messages after lastOpened
 --!     - rack can't have empty spaces if tiles are in the letterbag
+--!     - match ends once score has an absolute value of 100 or more
 --!
 --!     DESIGN PATTERN REFINEMENTS
 --!         Observer Pattern
@@ -739,7 +740,19 @@ attributes
     startRow: Integer
     startCol: Integer
     direction: PlayDirection
-    score: Integer --derived: calcScore
+    score: Integer derived =
+        let
+            multiplier = if bonusApplied then 1.5 else 1 endif,
+            activeTiles = rack.tiles->union(match.board.slots.tile)->asSet(),
+            flatScore = words->iterate(w; ans:Integer = 0 |
+                    ans + w.letters->iterate(l; ws:Integer = 0 |
+                        ws + activeTiles
+                            ->any(t | t.letter.letter = l.letter).points
+                    )
+                )
+        in (if bonusApplied then
+                (flatScore * multiplier)
+            else flatScore endif).floor
     time: DateTime
     bonusApplied: Boolean
 operations
@@ -779,7 +792,7 @@ end -- LetterBag Class
 class Word
 attributes
     String: Word
-    category:  Category
+    category: Category init: #NONE
 operations
     --getters
     --protected setters
@@ -798,7 +811,12 @@ attributes
     duration: Period
     category: Category
     status: MatchStatus init: #INPROGRESS
-    score: Integer init: 100
+    score: Integer derived = playHistory->iterate(p; ans: Integer = 0 |
+                                if playHistory->indexOf(p).mod(2) = 1 then
+                                    ans + p.score
+                                else
+                                    ans - p.score
+                                endif)
 operations
     --getters
     --update(o: Observable)
@@ -959,25 +977,25 @@ association Plays between
     Play[*] role playHistory ordered
 end -- End Plays Association
 
-aggregation Holds between
+aggregation Hold between
     Rack[0..1]
     Tile[0..9] role tiles
-end -- End Holds Aggregation
+end -- End Hold Aggregation
 
 association Played between
     Rack[1]
     Play[*] role plays
 end -- End Played Association
 
-association Uses between
+association Use between
     Play[0..1]
     Tile[0..9] role tiles ordered
-end -- End Uses Association
+end -- End Use Association
 
-association Marked between
+association Mark between
     Tile[*] role tiles
     Letter[1]
-end -- End Marked Association
+end -- End Mark Association
 
 ----------------------------------Constraints---------------------------------
 
@@ -1443,21 +1461,23 @@ context Play
 
     -- Verify that a bonus is to be applied
     inv bonusCorrectlyFlagged:
-        words.category->includes(match.category) and bonusApplied
+        words.category->excluding(#NONE)
+            ->includes(match.category) = bonusApplied
 
     -- Score calculation verification
     inv scoreCorrectlyCalculated:
         let
             multiplier = if bonusApplied then 1.5 else 1 endif,
-            tiles = rack.tiles->union(match.board.slots.tile)->asSet(),
+            activeTiles = rack.tiles->union(match.board.slots.tile)->asSet(),
             flatScore = words->iterate(w; ans:Integer = 0 |
                     ans + w.letters->iterate(l; ws:Integer = 0 |
-                        ws + tiles->any(t | t.letter.letter = l.letter).points
+                        ws + activeTiles
+                            ->any(t | t.letter.letter = l.letter).points
                     )
                 )
-        in score = if bonusApplied then
+        in score = (if bonusApplied then
                 (flatScore * multiplier)
-            else flatScore endif
+            else flatScore endif).floor
 -- End Play Constraints
 
 context Board
