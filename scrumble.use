@@ -16,7 +16,6 @@ enum ReportStatus {UNRESOLVED, UNDER_REVIEW, RESOLVED}
 enum RequestStatus {PENDING, ACCEPTED, REJECTED, RECINDED, LOST}
 
 enum MatchType {RANKED, UNRANKED}
-enum NotificationType {CHAT, REQUEST, REMINDER} -- do we need this since notif is linked to observable now?
 enum PlayType {PLAY, PASS, QUIT}
 enum ReportType {BUG, PLAYER}
 enum RequestType {FRIEND, MESSAGE, MATCH}
@@ -610,8 +609,7 @@ end -- Message Class
 
 class Notification
 attributes
-    type: NotificationType
-    deliverytime: DateTime
+        deliverytime: DateTime
     dismissed: Boolean init: false
 operations
     -- Matks the message as dismissed
@@ -713,6 +711,23 @@ operations
 end -- Report Class
 
 -------------------------------------Game-------------------------------------
+
+class Queue
+operations
+    --
+end -- Queue Class
+
+associationclass Join
+between
+    Queue[*] role queues
+    Player[*] role players
+attributes
+    matchType: MatchType
+    timed: Boolean
+    joinedAt: DateTime
+operations
+    --
+end -- Join Association Class
 
 associationclass Rack
 between
@@ -1180,6 +1195,9 @@ context Player
     -- Can't play more than one match at a time
     inv onlyPlayingOneOrNoMatches:
         matchHistory->select(m | m.status = #INPROGRESS)->size() <= 1
+
+    -- Players may only join up to one queue at a time
+    inv onlyInOneQueue: queues->size() <= 1
 -- End Player Constraints
 
 context Chat
@@ -1283,6 +1301,12 @@ context Report
             reported->size() = 0
         endif
 -- End Report Constraints
+
+
+context Queue
+    -- Only unranked matches may be untimed
+    inv noUntimedRankedMatches: matchType = #RANKED implies timed
+-- End Queue Constraints
 
 context Rack
     -- No empty spaces unless there are no more tiles in the letterBag
