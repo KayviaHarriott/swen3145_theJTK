@@ -27,7 +27,6 @@ enum PlayDirection {HORIZONTAL, VERTICAL}
 
 --! @TODO:
 --!     - Add attributes to represent the rest of the player's profile data
---!     - no plays in the future or before the match start
 --!     - Rack might need an enum to indicate that a player has a specific
 --!       match open so it doesn't generate notifs when the match is open and
 --!       a play is made
@@ -38,15 +37,7 @@ enum PlayDirection {HORIZONTAL, VERTICAL}
 --!       a queue for each type of match
 --!     - If we can delete messages and reply to messages then we would add
 --!       methods for those as well
---!     - Should we have matches older than say 30 days automatically end?
 --!     - If Datetime becomes observable then would it still be a datatype?
---!     - check to ensure that the seen date of the last message corresponds
---!       with the lastOpened Date
---!     - tiles can only be in one place at a time
---!     - plays don't extend off the board
---!     - can't send messages after lastOpened
---!     - rack can't have empty spaces if tiles are in the letterbag
---!     - match ends once score has an absolute value of 100 or more
 --!     - Figure out how to manage adding and removing words since you
 --!       wouldn't want changes to affect past games
 --!
@@ -65,7 +56,7 @@ enum PlayDirection {HORIZONTAL, VERTICAL}
 --!             | observer    | observes |
 --!             +-------------+----------+
 --!             | leaderboard | match    |
---!             | player      | match    | **
+--!             | player      | match    |
 --!             | player      | request  |
 --!             | match       | play     |
 --!             | player      | chat     |
@@ -782,6 +773,8 @@ attributes
 operations
     --getters and setters
     getTile(): Tile = tile
+
+    isEmpty(): Boolean = tile->isEmpty()
 end -- Slot Class
 
 class Tile
@@ -798,6 +791,7 @@ attributes
 operations
     getLetter(): String = letter
     equals(l: Letter): Boolean = (getLetter() = l.getLetter())
+    pre argIsValid: l <> null
 end -- Letter Class
 
 class LetterBag
@@ -816,6 +810,8 @@ operations
         ans + l.getLetter())
 
     equals(ws: String): Boolean = getWord().equalsIgnoreCase(ws)
+    pre argIsValid: ws <> null
+
     --protected setters
 end -- Word Class
 
@@ -824,6 +820,7 @@ operations
     -- Searches for the word that matches the arguement passed and returns it
     -- returns null otherwise
     lookup(ws: String): Word = words->any(w | w.equals(ws))
+    pre argIsValid: ws <> null
 
     --protected setters
 end -- Dictionary Class
@@ -1210,6 +1207,12 @@ context ChatState
                 (m.status = #SEEN and (not m.seenDate.after(lastOpened)))
             )
         )
+
+    -- Can't send messages after closing the chat
+    inv noSentMsgsAfterChatClosed: status = #CLOSED implies
+        (not chatRooms.messages->exists(m |
+            participants->includes(m.msgSender) and
+            lastOpened.before(m.sentDate)))
 -- End ChatState Constraints
 
 context Message
@@ -1279,6 +1282,12 @@ context Report
         endif
 -- End Report Constraints
 
+context Rack
+    -- No empty spaces unless there are no more tiles in the letterBag
+    inv noEmptySpaceUnlessLetterBagEmpty: tiles->size() = 9 or
+        (tiles->size() < 9 and matchHistory.board.letterBag.tiles->size() = 0)
+-- End Rack Constraints
+
 context Play
     -- Plays must have a direction
     inv hasDirection: direction <> null
@@ -1294,25 +1303,48 @@ context Play
                 tcnt = tiles->size()
             in if direction = #HORIZONTAL then
                     Sequence{1..tcnt}->iterate(o; ans: Boolean = false |
-                        (grid.slots[r, c + o - 1].tile = null implies
+                        ans or
+                        (grid.slots[r, c + o - 1].isEmpty() implies
                             (not Set{grid.slots[r - 1, c + o - 1].tile,
                             grid.slots[r + 1, c + o - 1].tile}->isEmpty()))
-                        or ans
                     ) or grid.slots[r, c + tcnt].tile <> null
-                else if direction = #VERTICAL then
+                else --if direction = #VERTICAL then
                     Sequence{1..tcnt}->iterate(o; ans: Boolean = false |
-                        (grid.slots[r + o - 1, c].tile = null implies
+                        ans or
+                        (grid.slots[r + o - 1, c].isEmpty() implies
                             (not Set{grid.slots[r + o - 1, c - 1].tile,
                             grid.slots[r + o - 1, c + 1].tile}->isEmpty()))
-                        or ans
                     ) or grid.slots[r + tcnt, c].tile <> null
-                else
-                    false
-                endif endif
+                endif
             )
 
+    -- Plays do not extend beyond the board
+    inv allTilesOnBoard: type = #PLAY implies
+        (let
+            grid = match.board
+        in if direction = #HORIZONTAL then
+                Sequence{startCol..15}->iterate(c; ans: Integer = 0 |
+                    if not grid.slots[startRow, c].isEmpty() and
+                    grid.slots[startRow, c].filledAt.equals(time) then
+                        ans + 1
+                    else
+                        ans
+                    endif
+                ) >= tiles->size()
+            else --if direction = #VERTICAL then
+                Sequence{startRow..15}->iterate(r; ans: Integer = 0 |
+                    if not grid.slots[r, startCol].isEmpty() and
+                    grid.slots[r, startCol].filledAt.equals(time) then
+                        ans + 1
+                    else
+                        ans
+                    endif
+                ) >= tiles->size()
+            endif
+        )
+
     -- Passed plays or match quits cant have any tiles
-    inv passedPlayHasNoTiles: Set{#PASS, #QUIT}->includes(type) implies
+    inv passAndQuitHaveNoTiles: Set{#PASS, #QUIT}->includes(type) implies
         tiles->isEmpty()
 
     -- Only valid words may be spelt and only words spelt may be linked to
@@ -1348,12 +1380,12 @@ context Play
                 c; ans: String = '' |
                     let
                         s = grid.slots[startRow, c]
-                    in if s.tile->isEmpty() and
+                    in if s.isEmpty() and
                         c <= mainWordSlots->last() then
                             ans + tiles->at(mainWordSlots->indexOf(c))
                                 .letter.letter
                         else
-                            if s.tile <> null and
+                            if not s.isEmpty() and
                             ((startCol + ans.size()) = c) then
                                 ans + s.tile.letter.letter
                             else
@@ -1366,12 +1398,12 @@ context Play
                 r; ans: String = '' |
                     let
                         s = grid.slots[r, startCol]
-                    in if s.tile->isEmpty() and
+                    in if s.isEmpty() and
                         r <= mainWordSlots->last() then
                             ans + tiles->at(mainWordSlots->indexOf(r))
                                 .letter.letter
                         else
-                            if s.tile <> null and
+                            if not s.isEmpty() and
                             ((startRow + ans.size()) = r) then
                                 ans + s.tile.letter.letter
                             else
@@ -1389,7 +1421,7 @@ context Play
                             r; top: String = '' |
                                 let
                                     s = grid.slots[r, c]
-                                in if s.tile <> null and
+                                in if not s.isEmpty() and
                                     ((startRow - top.size()) = r) then
                                         s.tile.letter.letter + top
                                     else
@@ -1400,7 +1432,7 @@ context Play
                             r; bot: String = '' |
                                 let
                                     s = grid.slots[r, c]
-                                in if s.tile <> null and
+                                in if not s.isEmpty() and
                                     ((startRow + bot.size()) = r) then
                                         bot + s.tile.letter.letter
                                     else
@@ -1419,7 +1451,7 @@ context Play
                             c; left: String = '' |
                                 let
                                     s = grid.slots[c, r]
-                                in if s.tile <> null and
+                                in if not s.isEmpty() and
                                     ((startCol - left.size()) = c) then
                                         s.tile.letter.letter + left
                                     else
@@ -1430,7 +1462,7 @@ context Play
                             c; right: String = '' |
                                 let
                                     s = grid.slots[c, r]
-                                in if s.tile <> null and
+                                in if not s.isEmpty() and
                                     ((startCol + right.size()) = c) then
                                         right + s.tile.letter.letter
                                     else
@@ -1472,7 +1504,17 @@ context Board
 context Tile
     -- Ensure Tiles have a valid point value
     inv validPoints: points > 0 and points <= 10
+
+    -- Ensure that tiles are held by only one object at a time
+    inv onlyInOnePlace:
+        Set{letterBag, rack, slot}->excluding(null)->size() = 1
 -- End Tile Constraints
+
+context Slot
+    -- Each slot must have a filledAt time if not empty
+    inv hadFilledAtTimeIfFilled: (isEmpty() and filledAt = null) or
+        ((not isEmpty()) and filledAt <> null)
+-- End Slot Constraints
 
 context Letter
     -- Ensure that the letter is valid
@@ -1532,6 +1574,7 @@ context Match
             rackTiles = rack.tiles,
             boardTiles = board.slots.tile,
             allTiles = bagTiles->union(rackTiles->union(boardTiles))
+                ->excluding(null)
         in allTiles->forAll(t1, t2|
             t1.getLetter().equals(t2.getLetter()) implies
             t1.getPoints() = t2.getPoints())
@@ -1603,6 +1646,9 @@ context Match
     inv allPlaysWithinMatchDuration: playHistory->forAll(p |
         duration.containsDate(p.time))
 
+    -- Ensures that the end date for a match corresponds with the final play
+    -- if the match is finished or that there is no end date if the match is
+    -- still going
     inv matchEndValid:
         let
             lp = playHistory->last(),
@@ -1616,6 +1662,11 @@ context Match
                     (timed and dur > 0 and dur < 300))) --5 min
                 )
             )
+
+    -- Checks that no matches last longer than 30 days
+    inv noIndefiniteMatches: not Match.allInstances->exists(m |
+        (not m.timed) and (m.status = #INPROGRESS) and
+        (m.duration.durationInDays() > 30))
 -- End Match Constraints
 
 context Leaderboard
