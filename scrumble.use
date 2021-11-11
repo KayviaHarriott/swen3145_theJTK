@@ -1,8 +1,8 @@
 ------------------------------------------------------------------------------
 --! @authors: Jason Hunter, Kayvia Harriott, Tashna-Gail Williams
 --! Created on: 2021-10-11
---! @version: 0.4.5
---! Last Updated: 2021-11-06 12:00:48
+--! @version: 0.4.7
+--! Last Updated: 2021-11-10 21:24:14
 ------------------------------------------------------------------------------
 
 model scrumble
@@ -23,6 +23,7 @@ enum RequestType {FRIEND, MESSAGE, MATCH}
 
 enum Category {ANIMAL, MUSIC, MOVIES, FOOD, BOOKS, COUNTRIES, NONE}
 enum ProfileState {PRIVATE, PUBLIC}
+enum PlayDirection {HORIZONTAL, VERTICAL}
 
 --! @TODO:
 --!     - Add attributes to represent the rest of the player's profile data
@@ -747,8 +748,7 @@ attributes
     type: PlayType
     startRow: Integer
     startCol: Integer
-    endRow: Integer
-    endCol: Integer
+    direction: PlayDirection
     score: Integer --derived: calcScore
     time: DateTime
     bonusApplied: Boolean
@@ -762,9 +762,6 @@ class Board
 end -- Board Class
 
 class Slot
-attributes
-    row: Integer
-    column: Integer
 operations
     --getters and setters
 end -- Slot Class
@@ -928,8 +925,8 @@ association MatchGameBoard between
 end -- End MatchGameBoard Association
 
 composition Grid between
-    Board[1]
-    Slot[*] role slots
+    Board[1] qualifier (row: Integer, col: Integer)
+    Slot[1] role slots
 end -- End Grid Composition
 
 aggregation Fill between
@@ -1260,246 +1257,204 @@ context Report
 -- End Report Constraints
 
 context Play
-    -- Plays can only go in one direction
-    inv oneDirection:
-        (startRow = endRow and (endCol - startCol) >= 0) or
-        (startCol = endCol and (endRow - startRow) >= 0)
+    -- Plays must have a direction
+    inv hasDirection: direction <> null
 
     -- Words must intersect or be spelt right alongside existing words
     -- or from the center of the board if all slots are empty
-    inv intersectsWithAnotherWord:
-        (startRow = endRow and match.board.slots->select(s |
-            (Set{startRow - 1, startRow + 1}->includes(s.row) and
-                s.column >= startCol and s.column <= endCol)
-            or
-            (s.row = startRow and
-                Set{startCol - 1, endCol + 1}->includes(s.column))
-            ).tile->notEmpty()
-        ) or
-        (startCol = endCol and match.board.slots.select(s |
-            (Set{startCol - 1, startCol + 1}->includes(s.column) and
-                s.row >= startRow and s.column <= endRow)
-            or
-            (s.column = startCol and
-                Set{startRow - 1, endRow + 1}->includes(s.row))
-            ).tile->notEmpty()
-        )
+    inv intersectsWithAnotherWord: type = #PLAY implies
+        if direction = #HORIZONTAL then
+            match.board.slots[startRow, startCol - 1].tile <> null or
+            match.board.slots[startRow, startCol + tiles->size()].tile <>
+                null or
+            Sequence{1..tiles->size()}->iterate(o; ans: Boolean = false |
+                match.board.slots[startRow, startCol + o - 1].tile <> null
+                or ans
+            )
+        else if direction = #VERTICAL then
+            match.board.slots[startRow - 1, startCol].tile <> null or
+            match.board.slots[startRow + tiles->size(), startCol].tile <>
+                null or
+            Sequence{1..tiles->size()}->iterate(o; ans: Boolean = false |
+                match.board.slots[startRow + o - 1, startCol].tile <> null
+                or ans
+            )
+        else
+            false
+        endif endif
 
     -- Passed plays or match quits cant have any tiles
     inv passedPlayHasNoTiles: Set{#PASS, #QUIT}->includes(type) implies
         tiles->isEmpty()
 
-    -- Only valid words may be spelt
-    inv allWordsSpeltAreValidAndOnlySpeltWordsLinked:
-        if type = #PLAY then
-            if startRow = endRow then
-                let
-                    allSlots = match.board.slots,
+    -- Only valid words may be spelt and only words spelt may be linked to
+    -- a play
+    inv allWordsSpeltAreValidAndOnlySpeltWordsLinked: type = #PLAY implies
+        if direction = #HORIZONTAL then
+            let
+                grid = match.board,
 
-                    -- Get all slots in the play range and slots adjoining
-                    -- each end
-                    mainWordSlots = allSlots->select(s |
-                        s.row = startRow and s.column >= (startCol - 1) and
-                        s.column <= (endCol + 1))->sortedBy(s | s.column
-                    ),
-
-                    mainWord = mainWordSlots->iterate(s; word:String = ''|
-                        if s.tile->isEmpty() then
-                            if s.column >= startCol and s.column <= endCol then
-                                let
-                                    slotIndex = mainWordSlots->indexOf(s),
-                                    visitedSlots = mainWordSlots
-                                        ->subSequence(1, slotIndex),
-                                    nextLetter = visitedSlots
-                                        ->iterate(ws; ans:Integer = 0 |
-                                            if ws.tile->isEmpty() then
-                                                ans + 1
-                                            else ans endif
-                                        )
-                                in word.concat(tiles
-                                    ->at(nextLetter).letter.letter)
-                            else word endif
+                mainWordSlots = Sequence{startCol..15}->iterate(
+                    c; ans: Sequence(Integer) = Sequence{} |
+                        if grid.slots[startRow, c].tile->isEmpty() and
+                        ans->size() < tiles->size() then
+                            ans->append(c)
                         else
-                            word.concat(s.tile.letter.letter)
+                            ans
                         endif
                     ),
 
-                    secondaryWordsStart = mainWordSlots->select(s |
+                mainWord = Sequence{startCol..15}->iterate(
+                    c; ans: String = '' |
                         let
-                            adjAbove = allSlots->select(as |
-                                as.row = (s.row - 1) and as.column = s.column),
-                            adjBelow = allSlots->select(as |
-                                as.row = (s.row + 1) and as.column = s.column)
-                        in s.tile->isEmpty() and s.column >= startCol and
-                            s.column <= endCol and
-                            (adjAbove.tile->isEmpty() and
-                                adjBelow.tile->notEmpty()) or
-                            (adjBelow.tile->isEmpty() and
-                                adjAbove.tile->notEmpty())
+                            s = grid.slots[startRow, c]
+                        in if s.tile->isEmpty() and
+                            c <= mainWordSlots->last() then
+                                ans.concat(tiles
+                                ->at(mainWordSlots->indexOf(c)).letter.letter)
+                            else
+                                if s.tile <> null and
+                                ((startCol + ans.size()) = c) then
+                                    ans.concat(s.tile.letter.letter)
+                                else
+                                    ans
+                                endif
+                            endif
                     ),
 
-                    secondaryWords = secondaryWordsStart
-                        .iterate(s; wordLst:Set(String) = Set{} |
-                            let
-                                complete = false,
-
-                                above = allSlots->select(as |
-                                    as.row = (s.row - 1) and
-                                    as.column = s.column).tile->notEmpty(),
-
-                                wordSlots = allSlots->select(ws |
-                                    if above and ws.column = s.column then
-                                        ws.row >= s.row
+                secondaryWords = mainWordSlots->iterate(
+                    c; ans: Set(String) = Set{} |
+                        ans->including(
+                            Sequence{startRow..1}->iterate(
+                            r; top: String = '' |
+                                let
+                                    s = grid.slots[r, c]
+                                in if s.tile <> null and
+                                    ((startRow - top.size()) = r) then
+                                        s.tile.letter.letter.concat(top)
                                     else
-                                        ws.row <= s.row
+                                        top
                                     endif
-                                )->sortedBy(ws | ws.row),
+                            ).concat(
+                            Sequence{startRow..15}->iterate(
+                            r; bot: String = '' |
+                                let
+                                    s = grid.slots[r, c]
+                                in if s.tile <> null and
+                                    ((startRow + bot.size()) = r) then
+                                        bot.concat(s.tile.letter.letter)
+                                    else
+                                        bot
+                                    endif
+                            ))
+                        )
+                    ),
 
-                                wordSlots = if above then
-                                        wordSlots->reverse()
-                                    else wordSlots endif
-                            in wordLst->including(wordSlots
-                                ->iterate(ws; word:String = '' |
-                                    let
-                                        complete = ws.tile->isEmpty()
-                                    in
-                                        if not complete then
-                                            if not above then
-                                                word.concat(ws.tile.letter.letter)
-                                            else
-                                                ws.tile.letter.letter.concat(word)
-                                            endif
-                                        else word endif
-                                )
-                            )
-                        ),
+                allSpeltWords = secondaryWords->including(mainWord),
 
-                    allSpeltWords = secondaryWords->including(mainWord),
-
-                    allValidWords = match.dictionary.words
-                        ->iterate(w; wSet:Set(String) = Set{} |
-                            wSet->including(w.letters
-                                ->iterate(l; wordStr:String = '' |
-                                    wordStr.concat(l.letter)
-                                )
-                            )
-                        ),
-
-                    allLinkedWords = words
-                        ->iterate(w; wSet:Set(String) = Set{} |
-                            wSet->including(w.letters
-                                ->iterate(l; wordStr:String = '' |
-                                    wordStr.concat(l.letter)
-                                )
+                allValidWords = match.dictionary.words
+                    ->iterate(w; wSet:Set(String) = Set{} |
+                        wSet->including(w.letters
+                            ->iterate(l; wordStr:String = '' |
+                                wordStr.concat(l.letter)
                             )
                         )
-                in allValidWords->includesAll(allSpeltWords) and
-                    allSpeltWords->includesAll(allLinkedWords)
-            else false endif
-            or
-            if startCol = endCol then
-                let
-                    allSlots = match.board.slots,
+                    ),
 
-                    -- Get all slots in the play range and slots adjoining
-                    -- each end
-                    mainWordSlots = allSlots->select(s |
-                        s.column = startCol and s.row >= (startRow - 1) and
-                        s.row <= (endRow + 1))->sortedBy(s | s.row),
+                allLinkedWords = words
+                    ->iterate(w; wSet:Set(String) = Set{} |
+                        wSet->including(w.letters
+                            ->iterate(l; wordStr:String = '' |
+                                wordStr.concat(l.letter)
+                            )
+                        )
+                    )
+            in allValidWords->includesAll(allSpeltWords) and
+                allSpeltWords->includesAll(allLinkedWords)
+        else if direction = #VERTICAL then
+            let
+                grid = match.board,
 
-                    mainWord = mainWordSlots->iterate(s; word:String = ''|
-                        if s.tile->isEmpty() then
-                            if s.row >= startRow and s.row <= endRow then
-                                let
-                                    slotIndex = mainWordSlots->indexOf(s),
-                                    visitedSlots = mainWordSlots
-                                        ->subSequence(1, slotIndex),
-                                    nextLetter = visitedSlots
-                                        ->iterate(ws; ans:Integer = 0 |
-                                            if ws.tile->isEmpty() then
-                                                ans + 1
-                                            else ans endif)
-                                in word.concat(tiles
-                                    ->at(nextLetter).letter.letter)
-                            else word endif
+                mainWordSlots = Sequence{startRow..15}->iterate(
+                    r; ans: Sequence(Integer) = Sequence{} |
+                        if grid.slots[r, startCol].tile->isEmpty() and
+                        ans->size() < tiles->size() then
+                            ans->append(r)
                         else
-                            word.concat(s.tile.letter.letter)
+                            ans
                         endif
                     ),
 
-                    secondaryWordsStart = mainWordSlots->select(s |
+                mainWord = Sequence{startRow..15}->iterate(
+                    r; ans: String = '' |
                         let
-                            adjAbove = allSlots->select(as |
-                                as.column = (s.column - 1) and as.row = s.row),
-                            adjBelow = allSlots->select(as |
-                                as.column = (s.column + 1) and as.row = s.row)
-                        in s.tile->isEmpty() and s.row >= startRow and
-                            s.row <= endRow and
-                            (adjAbove.tile->isEmpty() and
-                                adjBelow.tile->notEmpty()) or
-                            (adjBelow.tile->isEmpty() and
-                                adjAbove.tile->notEmpty())
+                            s = grid.slots[r, startCol]
+                        in if s.tile->isEmpty() and
+                            r <= mainWordSlots->last() then
+                                ans.concat(tiles
+                                ->at(mainWordSlots->indexOf(r)).letter.letter)
+                            else
+                                if s.tile <> null and
+                                ((startRow + ans.size()) = r) then
+                                    ans.concat(s.tile.letter.letter)
+                                else
+                                    ans
+                                endif
+                            endif
                     ),
 
-                    secondaryWords = secondaryWordsStart
-                        .iterate(s; wordLst:Set(String) = Set{} |
-                            let
-                                complete = false,
-
-                                above = allSlots->select(as |
-                                    as.column = (s.column - 1) and
-                                    as.row = s.row).tile->notEmpty(),
-
-                                wordSlots = allSlots->select(ws |
-                                    if above and ws.row = s.row then
-                                        ws.column >= s.column
+                secondaryWords = mainWordSlots->iterate(
+                    r; ans: Set(String) = Set{} |
+                        ans->including(
+                            Sequence{startCol..1}->iterate(
+                            c; left: String = '' |
+                                let
+                                    s = grid.slots[c, r]
+                                in if s.tile <> null and
+                                    ((startCol - left.size()) = c) then
+                                        s.tile.letter.letter.concat(left)
                                     else
-                                        ws.column <= s.column
+                                        left
                                     endif
-                                )->sortedBy(ws | ws.column),
+                            ).concat(
+                            Sequence{startCol..15}->iterate(
+                            c; right: String = '' |
+                                let
+                                    s = grid.slots[c, r]
+                                in if s.tile <> null and
+                                    ((startCol + right.size()) = c) then
+                                        right.concat(s.tile.letter.letter)
+                                    else
+                                        right
+                                    endif
+                            ))
+                        )
+                    ),
 
-                                wordSlots = if above then
-                                        wordSlots->reverse()
-                                    else wordSlots endif
-                            in wordLst->including(wordSlots
-                                ->iterate(ws; word:String = '' |
-                                    let
-                                        complete = ws.tile->isEmpty()
-                                    in
-                                        if not complete then
-                                            if not above then
-                                                word.concat(ws.tile.letter.letter)
-                                            else
-                                                ws.tile.letter.letter.concat(word)
-                                            endif
-                                        else word endif
-                                )
-                            )
-                        ),
+                allSpeltWords = secondaryWords->including(mainWord),
 
-                    allSpeltWords = secondaryWords->including(mainWord),
-
-                    allValidWords = match.dictionary.words
-                        ->iterate(w; wSet:Set(String) = Set{} |
-                            wSet->including(w.letters
-                                ->iterate(l; wordStr:String = '' |
-                                    wordStr.concat(l.letter)
-                                )
-                            )
-                        ),
-
-                    allLinkedWords = words
-                        ->iterate(w; wSet:Set(String) = Set{} |
-                            wSet->including(w.letters
-                                ->iterate(l; wordStr:String = '' |
-                                    wordStr.concat(l.letter)
-                                )
+                allValidWords = match.dictionary.words
+                    ->iterate(w; wSet:Set(String) = Set{} |
+                        wSet->including(w.letters
+                            ->iterate(l; wordStr:String = '' |
+                                wordStr.concat(l.letter)
                             )
                         )
-                in allValidWords->includesAll(allSpeltWords) and
-                    allSpeltWords->includesAll(allLinkedWords)
-            else false endif
-        else true endif
+                    ),
+
+                allLinkedWords = words
+                    ->iterate(w; wSet:Set(String) = Set{} |
+                        wSet->including(w.letters
+                            ->iterate(l; wordStr:String = '' |
+                                wordStr.concat(l.letter)
+                            )
+                        )
+                    )
+            in allValidWords->includesAll(allSpeltWords) and
+                allSpeltWords->includesAll(allLinkedWords)
+        else
+            false
+        endif endif
 
     -- Verify that a bonus is to be applied
     inv bonusCorrectlyFlagged:
@@ -1522,8 +1477,13 @@ context Play
 
 context Board
     -- Must have 15 by 15 slots
-    inv boardSizeIsValid: slots->forAll(s |
-        s.row > 0 and s.row <= 15 and s.column > 0 and s.column <= 15)
+    inv boardGridIsValid: slots->includesAll(
+        Sequence{1..15}->iterate(r; ans: Set(Slot) = Set{} |
+            ans->union(Sequence{1..15}->iterate(c; ans: Set(Slot) = Set{} |
+                ans->including(slots[r, c])
+            ))
+        )
+    )
 -- End Board Constraints
 
 context Tile
