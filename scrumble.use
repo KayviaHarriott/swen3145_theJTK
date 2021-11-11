@@ -773,6 +773,7 @@ attributes
 operations
     --getters and setters
     getTile(): Tile = tile
+    getTileString(): String = getTile().getLetterString()
 
     isEmpty(): Boolean = tile->isEmpty()
 end -- Slot Class
@@ -782,6 +783,7 @@ attributes
     points: Integer
 operations
     getLetter(): Letter = letter
+    getLetterString(): String = getLetter().getLetter()
     getPoints(): Integer = points
 end -- Tile Class
 
@@ -1327,18 +1329,14 @@ context Play
                     if not grid.slots[startRow, c].isEmpty() and
                     grid.slots[startRow, c].filledAt.equals(time) then
                         ans + 1
-                    else
-                        ans
-                    endif
+                    else ans endif
                 ) >= tiles->size()
             else --if direction = #VERTICAL then
                 Sequence{startRow..15}->iterate(r; ans: Integer = 0 |
                     if not grid.slots[r, startCol].isEmpty() and
                     grid.slots[r, startCol].filledAt.equals(time) then
                         ans + 1
-                    else
-                        ans
-                    endif
+                    else ans endif
                 ) >= tiles->size()
             endif
         )
@@ -1353,123 +1351,97 @@ context Play
         (let
             grid = match.board,
 
+            -- All the slots that were filled by tiles provided by the rack
+            -- this turn
             mainWordSlots = if direction = #HORIZONTAL then
                 Sequence{startCol..15}->iterate(
                 c; ans: Sequence(Integer) = Sequence{} |
-                    if grid.slots[startRow, c].tile->isEmpty() and
-                    ans->size() < tiles->size() then
+                    if (not grid.slots[startRow, c].isEmpty()) and
+                    grid.slots[startRow, c].filledAt.equals(time) then
                         ans->append(c)
-                    else
-                        ans
-                    endif
+                    else ans endif
                 )
             else --if direction = #VERTICAL then
                 Sequence{startRow..15}->iterate(
                 r; ans: Sequence(Integer) = Sequence{} |
-                    if grid.slots[r, startCol].tile->isEmpty() and
-                    ans->size() < tiles->size() then
+                    if (not grid.slots[r, startCol].isEmpty()) and
+                    grid.slots[r, startCol].filledAt.equals(time) then
                         ans->append(r)
-                    else
-                        ans
-                    endif
+                    else ans endif
                 )
             endif,
 
             mainWord = if direction = #HORIZONTAL then
-                Sequence{startCol..15}->iterate(
-                c; ans: String = '' |
+                Sequence{startCol..15}->iterate(c; ans: String = '' |
                     let
                         s = grid.slots[startRow, c]
-                    in if s.isEmpty() and
-                        c <= mainWordSlots->last() then
-                            ans + tiles->at(mainWordSlots->indexOf(c))
-                                .letter.letter
-                        else
-                            if not s.isEmpty() and
-                            ((startCol + ans.size()) = c) then
-                                ans + s.tile.letter.letter
-                            else
-                                ans
-                            endif
-                        endif
+                    in if not s.isEmpty() and
+                        ((startCol + ans.size()) = c) then
+                            ans + s.getTileString()
+                        else ans endif
                 )
             else --if direction = #VERTICAL then
-                Sequence{startRow..15}->iterate(
-                r; ans: String = '' |
+                Sequence{startRow..15}->iterate(r; ans: String = '' |
                     let
                         s = grid.slots[r, startCol]
-                    in if s.isEmpty() and
-                        r <= mainWordSlots->last() then
-                            ans + tiles->at(mainWordSlots->indexOf(r))
-                                .letter.letter
-                        else
-                            if not s.isEmpty() and
-                            ((startRow + ans.size()) = r) then
-                                ans + s.tile.letter.letter
-                            else
-                                ans
-                            endif
-                        endif
+                    in if not s.isEmpty() and
+                        ((startRow + ans.size()) = r) then
+                            ans + s.getTileString()
+                        else ans endif
                 )
             endif,
 
             secondaryWords = if direction = #HORIZONTAL then
-                mainWordSlots->iterate(
-                c; ans: Set(String) = Set{} |
+                mainWordSlots->iterate(c; ans: Set(String) = Set{} |
                     let
-                        word = Sequence{startRow..1}->iterate(
+                        word = Sequence{1..(startRow-1)}->reverse()->iterate(
                             r; top: String = '' |
                                 let
                                     s = grid.slots[r, c]
-                                in if not s.isEmpty() and
-                                    ((startRow - top.size()) = r) then
-                                        s.tile.letter.letter + top
-                                    else
-                                        top
-                                    endif
+                                in if ((not s.isEmpty()) and
+                                    (not s.filledAt.after(time)) and
+                                    ((startRow - top.size()) = r)) then
+                                        s.getTileString() + top
+                                    else top endif
                             ) +
                             Sequence{startRow..15}->iterate(
                             r; bot: String = '' |
                                 let
                                     s = grid.slots[r, c]
-                                in if not s.isEmpty() and
-                                    ((startRow + bot.size()) = r) then
-                                        bot + s.tile.letter.letter
-                                    else
-                                        bot
-                                    endif
+                                in if ((not s.isEmpty()) and
+                                    (not s.filledAt.after(time)) and
+                                    ((startRow + bot.size()) = r)) then
+                                        bot + s.getTileString()
+                                    else bot endif
                             )
-                    in if word.size() > 0 then
+                    in if word.size() > 1 then
                             ans->including(word)
                         else ans endif
                 )
             else --if direction = #VERTICAL then
-                mainWordSlots->iterate(
-                r; ans: Set(String) = Set{} |
+                mainWordSlots->iterate(r; ans: Set(String) = Set{} |
                     let
-                        word = Sequence{startCol..1}->iterate(
+                        word = Sequence{1..(startCol-1)}->reverse()->iterate(
                             c; left: String = '' |
                                 let
-                                    s = grid.slots[c, r]
-                                in if not s.isEmpty() and
-                                    ((startCol - left.size()) = c) then
-                                        s.tile.letter.letter + left
-                                    else
-                                        left
-                                    endif
+                                    s = grid.slots[r, c]
+                                in if ((not s.isEmpty()) and
+                                    (not s.filledAt.after(time)) and
+                                    ((startCol - left.size()) = c)) then
+                                        s.getTileString() + left
+                                    else left endif
                             ) +
                             Sequence{startCol..15}->iterate(
                             c; right: String = '' |
                                 let
-                                    s = grid.slots[c, r]
-                                in if not s.isEmpty() and
-                                    ((startCol + right.size()) = c) then
-                                        right + s.tile.letter.letter
-                                    else
-                                        right
-                                    endif
+                                    s = grid.slots[r, c]
+                                in if ((not s.isEmpty()) and
+                                    (not s.filledAt.after(time)) and
+                                    ((startCol + right.size()) = c)) then
+                                        right + s.getTileString()
+                                    else right endif
                             )
-                    in if word.size() > 0 then
+                    in if word.size() > 1 then
                             ans->including(word)
                         else ans endif
                 )
