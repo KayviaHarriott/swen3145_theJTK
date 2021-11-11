@@ -47,6 +47,8 @@ enum PlayDirection {HORIZONTAL, VERTICAL}
 --!     - can't send messages after lastOpened
 --!     - rack can't have empty spaces if tiles are in the letterbag
 --!     - match ends once score has an absolute value of 100 or more
+--!     - Figure out how to manage adding and removing words since you
+--!       wouldn't want changes to affect past games
 --!
 --!     DESIGN PATTERN REFINEMENTS
 --!         Observer Pattern
@@ -419,8 +421,8 @@ operations
 
     -- Returns true if the current period starts before and ends after
     -- the period passed as an argument
-    containsDate(d: DateTime): Boolean = getStart().before(d) and
-        (getEnd() <> null implies getEnd().after(d))
+    containsDate(d: DateTime): Boolean = (not getStart().after(d)) and
+        (getEnd() <> null implies (not getEnd().before(d)))
     pre selfAndArgsAreValid: isSelfValid() and d.isSelfValid()
     post noMutations: interval = interval@pre and  d = d@pre
     post resultIsCorrect: result = (getStart().before(d) and
@@ -737,12 +739,20 @@ end -- Rack Association Class
 class Play < Identifiable, Observable
 attributes
     type: PlayType
-    startRow: Integer
-    startCol: Integer
+    -- The main word is the word in the same row/column where the tiles were
+    -- placed. The main word does not have to start where the first tile
+    -- was placed
+    startRow: Integer -- row of the first letter of the main word
+    startCol: Integer -- column of the first letter of the main word
     direction: PlayDirection
-    score: Integer derived =
+    score: Integer derived = calcScore()
+    time: DateTime
+    multiplier: Real derived = calcMultiplier()
+operations
+    -- Calculates the points accumulated by the placement of the tiles on the
+    -- board
+    calcScore(): Integer =
         let
-            multiplier = if bonusApplied then 1.5 else 1 endif,
             activeTiles = rack.tiles->union(match.board.slots.tile)->asSet(),
             flatScore = words->iterate(w; ans:Integer = 0 |
                     ans + w.letters->iterate(l; ws:Integer = 0 |
@@ -750,37 +760,44 @@ attributes
                             ->any(t | t.letter.letter = l.letter).points
                     )
                 )
-        in (if bonusApplied then
-                (flatScore * multiplier)
-            else flatScore endif).floor
-    time: DateTime
-    bonusApplied: Boolean
-operations
-    -- Calculates the points accumulated by the placement of the tiles on the
-    -- board
-    --calcScore
+        in (flatScore * multiplier).floor
+    pre isAPlay: type = #PLAY
+
+    calcMultiplier(): Real =
+        if words.category->excluding(#NONE)
+        ->includes(match.category) then
+            1.5
+        else
+            1
+        endif
+    pre isAPlay: type = #PLAY
 end -- Play Class
 
 class Board
 end -- Board Class
 
 class Slot
+attributes
+    filledAt: DateTime
 operations
     --getters and setters
+    getTile(): Tile = tile
 end -- Slot Class
 
 class Tile
 attributes
     points: Integer
 operations
-    --getters
+    getLetter(): Letter = letter
+    getPoints(): Integer = points
 end -- Tile Class
 
 class Letter
 attributes
     letter: String
 operations
-    --getters
+    getLetter(): String = letter
+    equals(l: Letter): Boolean = (getLetter() = l.getLetter())
 end -- Letter Class
 
 class LetterBag
@@ -794,13 +811,20 @@ attributes
     String: Word
     category: Category init: #NONE
 operations
-    --getters
+    -- Returns a String that represents the word
+    getWord(): String = letters->iterate(l; ans: String = '' |
+        ans + l.getLetter())
+
+    equals(ws: String): Boolean = getWord().equalsIgnoreCase(ws)
     --protected setters
 end -- Word Class
 
 class Dictionary
 operations
-    --getters
+    -- Searches for the word that matches the arguement passed and returns it
+    -- returns null otherwise
+    lookup(ws: String): Word = words->any(w | w.equals(ws))
+
     --protected setters
 end -- Dictionary Class
 
@@ -844,7 +868,7 @@ between
 attributes
     placement: Integer
 operations
-    --getters
+    getRank(): Integer = placement
 end -- Rank Association Class
 
 ---------------------------------Associations---------------------------------
@@ -1261,26 +1285,31 @@ context Play
 
     -- Words must intersect or be spelt right alongside existing words
     -- or from the center of the board if all slots are empty
-    inv intersectsWithAnotherWord: type = #PLAY implies
-        if direction = #HORIZONTAL then
-            match.board.slots[startRow, startCol - 1].tile <> null or
-            match.board.slots[startRow, startCol + tiles->size()].tile <>
-                null or
-            Sequence{1..tiles->size()}->iterate(o; ans: Boolean = false |
-                match.board.slots[startRow, startCol + o - 1].tile <> null
-                or ans
+    inv intersectsWithAnotherWord:
+        (type = #PLAY and match.playHistory->first() <> self) implies
+            (let
+                grid = match.board,
+                r = startRow,
+                c = startCol,
+                tcnt = tiles->size()
+            in if direction = #HORIZONTAL then
+                    Sequence{1..tcnt}->iterate(o; ans: Boolean = false |
+                        (grid.slots[r, c + o - 1].tile = null implies
+                            (not Set{grid.slots[r - 1, c + o - 1].tile,
+                            grid.slots[r + 1, c + o - 1].tile}->isEmpty()))
+                        or ans
+                    ) or grid.slots[r, c + tcnt].tile <> null
+                else if direction = #VERTICAL then
+                    Sequence{1..tcnt}->iterate(o; ans: Boolean = false |
+                        (grid.slots[r + o - 1, c].tile = null implies
+                            (not Set{grid.slots[r + o - 1, c - 1].tile,
+                            grid.slots[r + o - 1, c + 1].tile}->isEmpty()))
+                        or ans
+                    ) or grid.slots[r + tcnt, c].tile <> null
+                else
+                    false
+                endif endif
             )
-        else if direction = #VERTICAL then
-            match.board.slots[startRow - 1, startCol].tile <> null or
-            match.board.slots[startRow + tiles->size(), startCol].tile <>
-                null or
-            Sequence{1..tiles->size()}->iterate(o; ans: Boolean = false |
-                match.board.slots[startRow + o - 1, startCol].tile <> null
-                or ans
-            )
-        else
-            false
-        endif endif
 
     -- Passed plays or match quits cant have any tiles
     inv passedPlayHasNoTiles: Set{#PASS, #QUIT}->includes(type) implies
@@ -1289,195 +1318,145 @@ context Play
     -- Only valid words may be spelt and only words spelt may be linked to
     -- a play
     inv allWordsSpeltAreValidAndOnlySpeltWordsLinked: type = #PLAY implies
-        if direction = #HORIZONTAL then
-            let
-                grid = match.board,
+        (let
+            grid = match.board,
 
-                mainWordSlots = Sequence{startCol..15}->iterate(
-                    c; ans: Sequence(Integer) = Sequence{} |
-                        if grid.slots[startRow, c].tile->isEmpty() and
-                        ans->size() < tiles->size() then
-                            ans->append(c)
-                        else
-                            ans
-                        endif
-                    ),
-
-                mainWord = Sequence{startCol..15}->iterate(
-                    c; ans: String = '' |
-                        let
-                            s = grid.slots[startRow, c]
-                        in if s.tile->isEmpty() and
-                            c <= mainWordSlots->last() then
-                                ans + tiles->at(mainWordSlots->indexOf(c))
-                                    .letter.letter
-                            else
-                                if s.tile <> null and
-                                ((startCol + ans.size()) = c) then
-                                    ans + s.tile.letter.letter
-                                else
-                                    ans
-                                endif
-                            endif
-                    ),
-
-                secondaryWords = mainWordSlots->iterate(
-                    c; ans: Set(String) = Set{} |
-                        let
-                            word = Sequence{startRow..1}->iterate(
-                                r; top: String = '' |
-                                    let
-                                        s = grid.slots[r, c]
-                                    in if s.tile <> null and
-                                        ((startRow - top.size()) = r) then
-                                            s.tile.letter.letter + top
-                                        else
-                                            top
-                                        endif
-                                ) +
-                                Sequence{startRow..15}->iterate(
-                                r; bot: String = '' |
-                                    let
-                                        s = grid.slots[r, c]
-                                    in if s.tile <> null and
-                                        ((startRow + bot.size()) = r) then
-                                            bot + s.tile.letter.letter
-                                        else
-                                            bot
-                                        endif
-                                )
-                        in if word.size() > 0 then
-                                ans->including(word)
-                            else ans endif
-                    ),
-
-                allSpeltWords = secondaryWords->including(mainWord),
-
-                allValidWords = match.dictionary.words
-                    ->iterate(w; wSet:Set(String) = Set{} |
-                        wSet->including(w.letters
-                            ->iterate(l; wordStr:String = '' |
-                                wordStr + l.letter
-                            )
-                        )
-                    ),
-
-                allLinkedWords = words
-                    ->iterate(w; wSet:Set(String) = Set{} |
-                        wSet->including(w.letters
-                            ->iterate(l; wordStr:String = '' |
-                                wordStr + l.letter
-                            )
-                        )
-                    )
-            in allValidWords->includesAll(allSpeltWords) and
-                allSpeltWords->includesAll(allLinkedWords)
-        else if direction = #VERTICAL then
-            let
-                grid = match.board,
-
-                mainWordSlots = Sequence{startRow..15}->iterate(
-                    r; ans: Sequence(Integer) = Sequence{} |
-                        if grid.slots[r, startCol].tile->isEmpty() and
-                        ans->size() < tiles->size() then
-                            ans->append(r)
-                        else
-                            ans
-                        endif
-                    ),
-
-                mainWord = Sequence{startRow..15}->iterate(
-                    r; ans: String = '' |
-                        let
-                            s = grid.slots[r, startCol]
-                        in if s.tile->isEmpty() and
-                            r <= mainWordSlots->last() then
-                                ans + tiles->at(mainWordSlots->indexOf(r))
-                                    .letter.letter
-                            else
-                                if s.tile <> null and
-                                ((startRow + ans.size()) = r) then
-                                    ans + s.tile.letter.letter
-                                else
-                                    ans
-                                endif
-                            endif
-                    ),
-
-                secondaryWords = mainWordSlots->iterate(
-                    r; ans: Set(String) = Set{} |
-                        let
-                            word = Sequence{startCol..1}->iterate(
-                                c; left: String = '' |
-                                    let
-                                        s = grid.slots[c, r]
-                                    in if s.tile <> null and
-                                        ((startCol - left.size()) = c) then
-                                            s.tile.letter.letter + left
-                                        else
-                                            left
-                                        endif
-                                ) +
-                                Sequence{startCol..15}->iterate(
-                                c; right: String = '' |
-                                    let
-                                        s = grid.slots[c, r]
-                                    in if s.tile <> null and
-                                        ((startCol + right.size()) = c) then
-                                            right + s.tile.letter.letter
-                                        else
-                                            right
-                                        endif
-                                )
-                        in if word.size() > 0 then
-                                ans->including(word)
-                            else ans endif
-                    ),
-
-                allSpeltWords = secondaryWords->including(mainWord),
-
-                allValidWords = match.dictionary.words
-                    ->iterate(w; wSet:Set(String) = Set{} |
-                        wSet->including(w.letters
-                            ->iterate(l; wordStr:String = '' |
-                                wordStr + l.letter
-                            )
-                        )
-                    ),
-
-                allLinkedWords = words
-                    ->iterate(w; wSet:Set(String) = Set{} |
-                        wSet->including(w.letters
-                            ->iterate(l; wordStr:String = '' |
-                                wordStr + l.letter
-                            )
-                        )
-                    )
-            in allValidWords->includesAll(allSpeltWords) and
-                allSpeltWords->includesAll(allLinkedWords)
-        else
-            false
-        endif endif
-
-    -- Verify that a bonus is to be applied
-    inv bonusCorrectlyFlagged:
-        words.category->excluding(#NONE)
-            ->includes(match.category) = bonusApplied
-
-    -- Score calculation verification
-    inv scoreCorrectlyCalculated:
-        let
-            multiplier = if bonusApplied then 1.5 else 1 endif,
-            activeTiles = rack.tiles->union(match.board.slots.tile)->asSet(),
-            flatScore = words->iterate(w; ans:Integer = 0 |
-                    ans + w.letters->iterate(l; ws:Integer = 0 |
-                        ws + activeTiles
-                            ->any(t | t.letter.letter = l.letter).points
-                    )
+            mainWordSlots = if direction = #HORIZONTAL then
+                Sequence{startCol..15}->iterate(
+                c; ans: Sequence(Integer) = Sequence{} |
+                    if grid.slots[startRow, c].tile->isEmpty() and
+                    ans->size() < tiles->size() then
+                        ans->append(c)
+                    else
+                        ans
+                    endif
                 )
-        in score = (if bonusApplied then
-                (flatScore * multiplier)
-            else flatScore endif).floor
+            else --if direction = #VERTICAL then
+                Sequence{startRow..15}->iterate(
+                r; ans: Sequence(Integer) = Sequence{} |
+                    if grid.slots[r, startCol].tile->isEmpty() and
+                    ans->size() < tiles->size() then
+                        ans->append(r)
+                    else
+                        ans
+                    endif
+                )
+            endif,
+
+            mainWord = if direction = #HORIZONTAL then
+                Sequence{startCol..15}->iterate(
+                c; ans: String = '' |
+                    let
+                        s = grid.slots[startRow, c]
+                    in if s.tile->isEmpty() and
+                        c <= mainWordSlots->last() then
+                            ans + tiles->at(mainWordSlots->indexOf(c))
+                                .letter.letter
+                        else
+                            if s.tile <> null and
+                            ((startCol + ans.size()) = c) then
+                                ans + s.tile.letter.letter
+                            else
+                                ans
+                            endif
+                        endif
+                )
+            else --if direction = #VERTICAL then
+                Sequence{startRow..15}->iterate(
+                r; ans: String = '' |
+                    let
+                        s = grid.slots[r, startCol]
+                    in if s.tile->isEmpty() and
+                        r <= mainWordSlots->last() then
+                            ans + tiles->at(mainWordSlots->indexOf(r))
+                                .letter.letter
+                        else
+                            if s.tile <> null and
+                            ((startRow + ans.size()) = r) then
+                                ans + s.tile.letter.letter
+                            else
+                                ans
+                            endif
+                        endif
+                )
+            endif,
+
+            secondaryWords = if direction = #HORIZONTAL then
+                mainWordSlots->iterate(
+                c; ans: Set(String) = Set{} |
+                    let
+                        word = Sequence{startRow..1}->iterate(
+                            r; top: String = '' |
+                                let
+                                    s = grid.slots[r, c]
+                                in if s.tile <> null and
+                                    ((startRow - top.size()) = r) then
+                                        s.tile.letter.letter + top
+                                    else
+                                        top
+                                    endif
+                            ) +
+                            Sequence{startRow..15}->iterate(
+                            r; bot: String = '' |
+                                let
+                                    s = grid.slots[r, c]
+                                in if s.tile <> null and
+                                    ((startRow + bot.size()) = r) then
+                                        bot + s.tile.letter.letter
+                                    else
+                                        bot
+                                    endif
+                            )
+                    in if word.size() > 0 then
+                            ans->including(word)
+                        else ans endif
+                )
+            else --if direction = #VERTICAL then
+                mainWordSlots->iterate(
+                r; ans: Set(String) = Set{} |
+                    let
+                        word = Sequence{startCol..1}->iterate(
+                            c; left: String = '' |
+                                let
+                                    s = grid.slots[c, r]
+                                in if s.tile <> null and
+                                    ((startCol - left.size()) = c) then
+                                        s.tile.letter.letter + left
+                                    else
+                                        left
+                                    endif
+                            ) +
+                            Sequence{startCol..15}->iterate(
+                            c; right: String = '' |
+                                let
+                                    s = grid.slots[c, r]
+                                in if s.tile <> null and
+                                    ((startCol + right.size()) = c) then
+                                        right + s.tile.letter.letter
+                                    else
+                                        right
+                                    endif
+                            )
+                    in if word.size() > 0 then
+                            ans->including(word)
+                        else ans endif
+                )
+            endif,
+
+            allSpeltWords = secondaryWords->including(mainWord),
+
+            allValidWords = match.dictionary.words
+                ->iterate(w; wSet:Set(String) = Set{} |
+                    wSet->including(w.getWord())
+                ),
+
+            allLinkedWords = words
+                ->iterate(w; wSet:Set(String) = Set{} |
+                    wSet->including(w.getWord())
+                )
+        in allValidWords->includesAll(allSpeltWords) and
+            allSpeltWords->includesAll(allLinkedWords)
+        )
 -- End Play Constraints
 
 context Board
@@ -1508,14 +1487,7 @@ context Dictionary
 
     -- No duplicate words
     inv uniqueWords: words->forAll(w1, w2 |
-            if w1 <> w2 then
-                let
-                    word1 = w1.letters->iterate(l; word:String = '' |
-                        word + l.letter),
-                    word2 = w2.letters->iterate(l; word:String = '' |
-                        word + l.letter)
-                in not word1.equalsIgnoreCase(word2)
-            else true endif
+            w1 <> w2 implies (not w1.equals(w2.getWord()))
         )
 -- End Dictionary Constraints
 
@@ -1561,7 +1533,8 @@ context Match
             boardTiles = board.slots.tile,
             allTiles = bagTiles->union(rackTiles->union(boardTiles))
         in allTiles->forAll(t1, t2|
-            t1.letter.letter = t2.letter.letter implies t1.points = t2.points)
+            t1.getLetter().equals(t2.getLetter()) implies
+            t1.getPoints() = t2.getPoints())
 
     -- must be a fixed set of tiles in circulation for a given match
     inv fixedNumberOfLettersInMatch:
@@ -1626,21 +1599,23 @@ context Match
                 (p1.placement - p2.placement).abs() <= 200)
         )
 
-    -- Once a player quits the match must end
-    inv matchEndIfQuit:
-        playHistory->exists(p | p.type = #QUIT) implies status = #ABANDONED
-
     -- Once a match ends no additional plays can be made
-    inv noPlaysAfterMatchEnd:
-        let
-            lp = playHistory->last()
-        in (status = #ABANDONED implies lp.type = #QUIT) and
-            (Set{#COMPLETE, #ABANDONED}->includes(status) implies
-                lp.time.equals(duration.getEnd()))
+    inv allPlaysWithinMatchDuration: playHistory->forAll(p |
+        duration.containsDate(p.time))
 
-    -- Timed matches can't last longer than 5 min
-    inv timedMatchDurationValid: timed implies
-        (duration.duration() > 0 and duration.duration() < 300) -- 5 min
+    inv matchEndValid:
+        let
+            lp = playHistory->last(),
+            dur = duration.duration()
+        in (Set{#COMPLETE, #ABANDONED}->excludes(status) and
+                duration.getEnd() = null) or
+            (duration.getEnd() = lp.time and
+                ((status = #ABANDONED and lp.type = #QUIT) or
+                (status = #COMPLETE and
+                    (score.abs() >= 100 or
+                    (timed and dur > 0 and dur < 300))) --5 min
+                )
+            )
 -- End Match Constraints
 
 context Leaderboard
