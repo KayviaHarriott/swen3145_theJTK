@@ -42,6 +42,10 @@ enum PlayDirection {HORIZONTAL, VERTICAL}
 --!     - If Datetime becomes observable then would it still be a datatype?
 --!     - check to ensure that the seen date of the last message corresponds
 --!       with the lastOpened Date
+--!     - tiles can only be in one place at a time
+--!     - plays don't extend off the board
+--!     - can't send messages after lastOpened
+--!     - rack can't have empty spaces if tiles are in the letterbag
 --!
 --!     DESIGN PATTERN REFINEMENTS
 --!         Observer Pattern
@@ -98,20 +102,6 @@ end -- Observer Class
 
 abstract class Observable
 end -- Observable Class
-
--- tm_sec +
--- tm_min*60 +
--- tm_hour*3600 +
--- tm_yday*86400 +
--- (tm_year-70)*31536000 +
--- ((tm_year-69)/4)*86400 -
--- ((tm_year-1)/100)*86400 +
--- ((tm_year+299)/400)*86400
--- ? frReq1AddrDate.toSecondsSinceEposh(2000, 1, 1, 0, 0, 1)
--- ? frReq1AddrDate.makeHumanReadable(2147483647)
--- ? ((1024*1024*1024).oclAsType(UnlimitedNatural) * 4.oclAsType(UnlimitedNatural)).oclAsType(UnlimitedNatural)
--- ? (4294967296.0).oclAsType(Real)
--- ? (429496729).oclAsType(UnlimitedNatural)
 
 class DateTime
 attributes
@@ -844,17 +834,17 @@ end -- Rank Association Class
 association Watches between
     Observer[*]
     Observable[*]
-end -- watches Association
+end -- Watches Association
 
-association CurrentDate between
+association CurrentTime between
     DateTime[*]
     DateTime[0..1] role now
-end -- currentDate Association
+end -- CurrentTime Association
 
 association PeriodInterval between
     Period[*]
     DateTime[0..2] role interval ordered
-end -- interval Association
+end -- PeriodInterval Association
 
 association OnlyLboard between
     Leaderboard[1] role lboard1
@@ -930,7 +920,7 @@ composition Grid between
 end -- End Grid Composition
 
 aggregation Fill between
-    Slot[1]
+    Slot[0..1]
     Tile[0..1]
 end -- End Fill Aggregation
 
@@ -940,7 +930,7 @@ association LetterOptions between
 end -- End LetterOptions Association
 
 aggregation Stock between
-    LetterBag[1]
+    LetterBag[0..1]
     Tile[*] role tiles
 end -- End Stock Aggregation
 
@@ -970,7 +960,7 @@ association Plays between
 end -- End Plays Association
 
 aggregation Holds between
-    Rack[1]
+    Rack[0..1]
     Tile[0..9] role tiles
 end -- End Holds Aggregation
 
@@ -980,7 +970,7 @@ association Played between
 end -- End Played Association
 
 association Uses between
-    Play[1]
+    Play[0..1]
     Tile[0..9] role tiles ordered
 end -- End Uses Association
 
@@ -1010,7 +1000,7 @@ context DateTime
     -- #DOUBLE-CHECK
     inv onlyOneCurrentTime:
         let
-            now = DateTime.allInstances.now->asSet()
+            now = DateTime.allInstances.now->asSet()->excluding(null)
         in (DateTime.allInstances->size() > 1 implies now->size() = 1) and
             now->forAll(t | t.oclIsTypeOf(DateTime))
 -- End DateTime Constraints
@@ -1167,22 +1157,13 @@ context Chat
             previousMsgs = messages->subOrderedSet(1, i - 1)
         in messages->first() <> m implies
             previousMsgs->forAll(prevM | prevM.sentDate.before(m.sentDate)))
-
-    -- Only the newest messages from a single player in a chat may be unseen
-    inv onlyNewestMsgsMayBeUnseen:
-        let
-            unseen = messages->select(m | m.status = #UNSEEN),
-            sender = unseen.msgSender->asSet(),
-            lastMsg = unseen->last()
-        in unseen->size() > 0 implies (sender->size() = 1 and
-            messages->forAll(m | unseen->excludes(m) and m.status = #SEEN))
 -- End Chat Constraints
 
 context ChatState
     -- All messages from the other player before lastOpened date must be seen
-    inv msgsStatusAndLastOpenedConsistent:
+    inv onlyMsgsAfterLastOpenedUnseen:
         chatRooms.messages->forAll(m |
-            m.msgSender <> participants implies (
+            participants->excludes(m.msgSender) implies (
                 (m.status = #UNSEEN and m.sentDate.after(lastOpened)) or
                 (m.status = #SEEN and (not m.seenDate.after(lastOpened)))
             )
@@ -1310,12 +1291,12 @@ context Play
                             s = grid.slots[startRow, c]
                         in if s.tile->isEmpty() and
                             c <= mainWordSlots->last() then
-                                ans.concat(tiles
-                                ->at(mainWordSlots->indexOf(c)).letter.letter)
+                                ans + tiles->at(mainWordSlots->indexOf(c))
+                                    .letter.letter
                             else
                                 if s.tile <> null and
                                 ((startCol + ans.size()) = c) then
-                                    ans.concat(s.tile.letter.letter)
+                                    ans + s.tile.letter.letter
                                 else
                                     ans
                                 endif
@@ -1324,30 +1305,32 @@ context Play
 
                 secondaryWords = mainWordSlots->iterate(
                     c; ans: Set(String) = Set{} |
-                        ans->including(
-                            Sequence{startRow..1}->iterate(
-                            r; top: String = '' |
-                                let
-                                    s = grid.slots[r, c]
-                                in if s.tile <> null and
-                                    ((startRow - top.size()) = r) then
-                                        s.tile.letter.letter.concat(top)
-                                    else
-                                        top
-                                    endif
-                            ).concat(
-                            Sequence{startRow..15}->iterate(
-                            r; bot: String = '' |
-                                let
-                                    s = grid.slots[r, c]
-                                in if s.tile <> null and
-                                    ((startRow + bot.size()) = r) then
-                                        bot.concat(s.tile.letter.letter)
-                                    else
-                                        bot
-                                    endif
-                            ))
-                        )
+                        let
+                            word = Sequence{startRow..1}->iterate(
+                                r; top: String = '' |
+                                    let
+                                        s = grid.slots[r, c]
+                                    in if s.tile <> null and
+                                        ((startRow - top.size()) = r) then
+                                            s.tile.letter.letter + top
+                                        else
+                                            top
+                                        endif
+                                ) +
+                                Sequence{startRow..15}->iterate(
+                                r; bot: String = '' |
+                                    let
+                                        s = grid.slots[r, c]
+                                    in if s.tile <> null and
+                                        ((startRow + bot.size()) = r) then
+                                            bot + s.tile.letter.letter
+                                        else
+                                            bot
+                                        endif
+                                )
+                        in if word.size() > 0 then
+                                ans->including(word)
+                            else ans endif
                     ),
 
                 allSpeltWords = secondaryWords->including(mainWord),
@@ -1356,7 +1339,7 @@ context Play
                     ->iterate(w; wSet:Set(String) = Set{} |
                         wSet->including(w.letters
                             ->iterate(l; wordStr:String = '' |
-                                wordStr.concat(l.letter)
+                                wordStr + l.letter
                             )
                         )
                     ),
@@ -1365,7 +1348,7 @@ context Play
                     ->iterate(w; wSet:Set(String) = Set{} |
                         wSet->including(w.letters
                             ->iterate(l; wordStr:String = '' |
-                                wordStr.concat(l.letter)
+                                wordStr + l.letter
                             )
                         )
                     )
@@ -1391,12 +1374,12 @@ context Play
                             s = grid.slots[r, startCol]
                         in if s.tile->isEmpty() and
                             r <= mainWordSlots->last() then
-                                ans.concat(tiles
-                                ->at(mainWordSlots->indexOf(r)).letter.letter)
+                                ans + tiles->at(mainWordSlots->indexOf(r))
+                                    .letter.letter
                             else
                                 if s.tile <> null and
                                 ((startRow + ans.size()) = r) then
-                                    ans.concat(s.tile.letter.letter)
+                                    ans + s.tile.letter.letter
                                 else
                                     ans
                                 endif
@@ -1405,30 +1388,32 @@ context Play
 
                 secondaryWords = mainWordSlots->iterate(
                     r; ans: Set(String) = Set{} |
-                        ans->including(
-                            Sequence{startCol..1}->iterate(
-                            c; left: String = '' |
-                                let
-                                    s = grid.slots[c, r]
-                                in if s.tile <> null and
-                                    ((startCol - left.size()) = c) then
-                                        s.tile.letter.letter.concat(left)
-                                    else
-                                        left
-                                    endif
-                            ).concat(
-                            Sequence{startCol..15}->iterate(
-                            c; right: String = '' |
-                                let
-                                    s = grid.slots[c, r]
-                                in if s.tile <> null and
-                                    ((startCol + right.size()) = c) then
-                                        right.concat(s.tile.letter.letter)
-                                    else
-                                        right
-                                    endif
-                            ))
-                        )
+                        let
+                            word = Sequence{startCol..1}->iterate(
+                                c; left: String = '' |
+                                    let
+                                        s = grid.slots[c, r]
+                                    in if s.tile <> null and
+                                        ((startCol - left.size()) = c) then
+                                            s.tile.letter.letter + left
+                                        else
+                                            left
+                                        endif
+                                ) +
+                                Sequence{startCol..15}->iterate(
+                                c; right: String = '' |
+                                    let
+                                        s = grid.slots[c, r]
+                                    in if s.tile <> null and
+                                        ((startCol + right.size()) = c) then
+                                            right + s.tile.letter.letter
+                                        else
+                                            right
+                                        endif
+                                )
+                        in if word.size() > 0 then
+                                ans->including(word)
+                            else ans endif
                     ),
 
                 allSpeltWords = secondaryWords->including(mainWord),
@@ -1437,7 +1422,7 @@ context Play
                     ->iterate(w; wSet:Set(String) = Set{} |
                         wSet->including(w.letters
                             ->iterate(l; wordStr:String = '' |
-                                wordStr.concat(l.letter)
+                                wordStr + l.letter
                             )
                         )
                     ),
@@ -1446,7 +1431,7 @@ context Play
                     ->iterate(w; wSet:Set(String) = Set{} |
                         wSet->including(w.letters
                             ->iterate(l; wordStr:String = '' |
-                                wordStr.concat(l.letter)
+                                wordStr + l.letter
                             )
                         )
                     )
@@ -1477,13 +1462,12 @@ context Play
 
 context Board
     -- Must have 15 by 15 slots
-    inv boardGridIsValid: slots->includesAll(
+    inv boardGridIsValid:
         Sequence{1..15}->iterate(r; ans: Set(Slot) = Set{} |
             ans->union(Sequence{1..15}->iterate(c; ans: Set(Slot) = Set{} |
                 ans->including(slots[r, c])
             ))
-        )
-    )
+        )->includesAll(slots)
 -- End Board Constraints
 
 context Tile
@@ -1495,27 +1479,24 @@ context Letter
     -- Ensure that the letter is valid
     inv validLetter: Set{'A', 'B', 'C', 'D', 'E', 'F', 'G', 'H', 'I', 'J',
         'K', 'L', 'M', 'N', 'O', 'P', 'Q', 'R', 'S', 'T', 'U', 'V', 'W',
-        'X', 'Y', 'Z'
-    }->includes(letter)
+        'X', 'Y', 'Z'}->includes(letter)
 -- End Letter Constraints
-
-context Word
-    -- No duplicate words
-    inv uniqueWords: Word.allInstances->forAll(w1, w2 |
-            if w1 <> w2 then
-                let
-                    word1 = w1.letters->iterate(l; word:String = '' |
-                        word.concat(l.letter)),
-                    word2 = w2.letters->iterate(l; word:String = '' |
-                        word.concat(l.letter))
-                in not word1.equalsIgnoreCase(word2)
-            else true endif
-        )
--- End Word Constraints
 
 context Dictionary
     -- Only one dictionary for the lifecycle of the system
     inv onlyOneDictionaryInstance: Dictionary.allInstances->size() <= 1
+
+    -- No duplicate words
+    inv uniqueWords: words->forAll(w1, w2 |
+            if w1 <> w2 then
+                let
+                    word1 = w1.letters->iterate(l; word:String = '' |
+                        word + l.letter),
+                    word2 = w2.letters->iterate(l; word:String = '' |
+                        word + l.letter)
+                in not word1.equalsIgnoreCase(word2)
+            else true endif
+        )
 -- End Dictionary Constraints
 
 context Match
@@ -1565,67 +1546,57 @@ context Match
     -- must be a fixed set of tiles in circulation for a given match
     inv fixedNumberOfLettersInMatch:
         let
-            bagLetters = board.letterBag.tiles.letter,
-            rackLetters = rack.tiles.letter,
-            boardLetters = board.slots.tile.letter,
-            allTiles = bagLetters->union(rackLetters->union(boardLetters)),
-            a = allTiles->iterate(char; cnt:Integer = 0 |
-                if char.letter.equalsIgnoreCase('A') then cnt + 1 else cnt endif),
-            b = allTiles->iterate(char; cnt:Integer = 0 |
-                if char.letter.equalsIgnoreCase('B') then cnt + 1 else cnt endif),
-            c = allTiles->iterate(char; cnt:Integer = 0 |
-                if char.letter.equalsIgnoreCase('C') then cnt + 1 else cnt endif),
-            d = allTiles->iterate(char; cnt:Integer = 0 |
-                if char.letter.equalsIgnoreCase('D') then cnt + 1 else cnt endif),
-            e = allTiles->iterate(char; cnt:Integer = 0 |
-                if char.letter.equalsIgnoreCase('E') then cnt + 1 else cnt endif),
-            f = allTiles->iterate(char; cnt:Integer = 0 |
-                if char.letter.equalsIgnoreCase('F') then cnt + 1 else cnt endif),
-            g = allTiles->iterate(char; cnt:Integer = 0 |
-                if char.letter.equalsIgnoreCase('G') then cnt + 1 else cnt endif),
-            h = allTiles->iterate(char; cnt:Integer = 0 |
-                if char.letter.equalsIgnoreCase('H') then cnt + 1 else cnt endif),
-            i = allTiles->iterate(char; cnt:Integer = 0 |
-                if char.letter.equalsIgnoreCase('I') then cnt + 1 else cnt endif),
-            j = allTiles->iterate(char; cnt:Integer = 0 |
-                if char.letter.equalsIgnoreCase('J') then cnt + 1 else cnt endif),
-            k = allTiles->iterate(char; cnt:Integer = 0 |
-                if char.letter.equalsIgnoreCase('K') then cnt + 1 else cnt endif),
-            l = allTiles->iterate(char; cnt:Integer = 0 |
-                if char.letter.equalsIgnoreCase('L') then cnt + 1 else cnt endif),
-            m = allTiles->iterate(char; cnt:Integer = 0 |
-                if char.letter.equalsIgnoreCase('M') then cnt + 1 else cnt endif),
-            n = allTiles->iterate(char; cnt:Integer = 0 |
-                if char.letter.equalsIgnoreCase('N') then cnt + 1 else cnt endif),
-            o = allTiles->iterate(char; cnt:Integer = 0 |
-                if char.letter.equalsIgnoreCase('O') then cnt + 1 else cnt endif),
-            p = allTiles->iterate(char; cnt:Integer = 0 |
-                if char.letter.equalsIgnoreCase('P') then cnt + 1 else cnt endif),
-            q = allTiles->iterate(char; cnt:Integer = 0 |
-                if char.letter.equalsIgnoreCase('Q') then cnt + 1 else cnt endif),
-            r = allTiles->iterate(char; cnt:Integer = 0 |
-                if char.letter.equalsIgnoreCase('R') then cnt + 1 else cnt endif),
-            s = allTiles->iterate(char; cnt:Integer = 0 |
-                if char.letter.equalsIgnoreCase('S') then cnt + 1 else cnt endif),
-            t = allTiles->iterate(char; cnt:Integer = 0 |
-                if char.letter.equalsIgnoreCase('T') then cnt + 1 else cnt endif),
-            u = allTiles->iterate(char; cnt:Integer = 0 |
-                if char.letter.equalsIgnoreCase('U') then cnt + 1 else cnt endif),
-            v = allTiles->iterate(char; cnt:Integer = 0 |
-                if char.letter.equalsIgnoreCase('V') then cnt + 1 else cnt endif),
-            w = allTiles->iterate(char; cnt:Integer = 0 |
-                if char.letter.equalsIgnoreCase('W') then cnt + 1 else cnt endif),
-            x = allTiles->iterate(char; cnt:Integer = 0 |
-                if char.letter.equalsIgnoreCase('X') then cnt + 1 else cnt endif),
-            y = allTiles->iterate(char; cnt:Integer = 0 |
-                if char.letter.equalsIgnoreCase('Y') then cnt + 1 else cnt endif),
-            z = allTiles->iterate(char; cnt:Integer = 0 |
-                if char.letter.equalsIgnoreCase('Z') then cnt + 1 else cnt endif)
-        in (a = 9 and b = 2 and c = 2 and d = 4 and e = 12 and f = 2 and
-            g = 3 and h = 2 and i = 9 and j = 1 and k = 1 and l = 4 and
-            m = 2 and n = 6 and o = 8 and p = 2 and q = 1 and r = 6 and
-            s = 4 and t = 6 and u = 4 and v = 2 and w = 2 and x = 1 and
-            y = 2 and z = 1)
+            bagLetters = board.letterBag.tiles.letter->asSet(),
+            rackLetters = rack.tiles.letter->asSet(),
+            boardLetters = board.slots.tile.letter->asSet(),
+            allTiles = bagLetters->union(rackLetters->union(boardLetters))
+                ->excluding(null),
+            count = allTiles->iterate(
+                char; cnt:Tuple(a: Integer, b: Integer, c: Integer,
+                d: Integer, e: Integer, f: Integer, g: Integer, h: Integer,
+                i: Integer, j: Integer, k: Integer, l: Integer, m: Integer,
+                n: Integer, o: Integer, p: Integer, q: Integer, r: Integer,
+                s: Integer, t: Integer, u: Integer, v: Integer, w: Integer,
+                x: Integer, y: Integer, z: Integer) =
+                Tuple{a = 0, b = 0, c = 0, d = 0, e = 0, f = 0, g = 0,
+                h = 0, i = 0, j = 0, k = 0, l = 0, m = 0, n = 0, o = 0,
+                p = 0, q = 0, r = 0, s = 0, t = 0, u = 0, v = 0, w = 0,
+                x = 0, y = 0, z = 0} |
+                    Tuple{
+                    a = if char.letter = 'A' then cnt.a + 1 else cnt.a endif,
+                    b = if char.letter = 'B' then cnt.b + 1 else cnt.b endif,
+                    c = if char.letter = 'C' then cnt.c + 1 else cnt.c endif,
+                    d = if char.letter = 'D' then cnt.d + 1 else cnt.d endif,
+                    e = if char.letter = 'E' then cnt.e + 1 else cnt.e endif,
+                    f = if char.letter = 'F' then cnt.f + 1 else cnt.f endif,
+                    g = if char.letter = 'G' then cnt.g + 1 else cnt.g endif,
+                    h = if char.letter = 'H' then cnt.h + 1 else cnt.h endif,
+                    i = if char.letter = 'I' then cnt.i + 1 else cnt.i endif,
+                    j = if char.letter = 'J' then cnt.j + 1 else cnt.j endif,
+                    k = if char.letter = 'K' then cnt.k + 1 else cnt.k endif,
+                    l = if char.letter = 'L' then cnt.l + 1 else cnt.l endif,
+                    m = if char.letter = 'M' then cnt.m + 1 else cnt.m endif,
+                    n = if char.letter = 'N' then cnt.n + 1 else cnt.n endif,
+                    o = if char.letter = 'O' then cnt.o + 1 else cnt.o endif,
+                    p = if char.letter = 'P' then cnt.p + 1 else cnt.p endif,
+                    q = if char.letter = 'Q' then cnt.q + 1 else cnt.q endif,
+                    r = if char.letter = 'R' then cnt.r + 1 else cnt.r endif,
+                    s = if char.letter = 'S' then cnt.s + 1 else cnt.s endif,
+                    t = if char.letter = 'T' then cnt.t + 1 else cnt.t endif,
+                    u = if char.letter = 'U' then cnt.u + 1 else cnt.u endif,
+                    v = if char.letter = 'V' then cnt.v + 1 else cnt.v endif,
+                    w = if char.letter = 'W' then cnt.w + 1 else cnt.w endif,
+                    x = if char.letter = 'X' then cnt.x + 1 else cnt.x endif,
+                    y = if char.letter = 'Y' then cnt.y + 1 else cnt.y endif,
+                    z = if char.letter = 'Z' then cnt.z + 1 else cnt.z endif}
+                )
+        in (count.a = 9 and count.b = 2 and count.c = 2 and count.d = 4 and
+            count.e = 12 and count.f = 2 and count.g = 3 and count.h = 2 and
+            count.i = 9 and count.j = 1 and count.k = 1 and count.l = 4 and
+            count.m = 2 and count.n = 6 and count.o = 8 and count.p = 2 and
+            count.q = 1 and count.r = 6 and count.s = 4 and count.t = 6 and
+            count.u = 4 and count.v = 2 and count.w = 2 and count.x = 1 and
+            count.y = 2 and count.z = 1)
 
     -- Players must be similar rank
     inv similarRank:
