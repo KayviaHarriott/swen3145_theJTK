@@ -1084,14 +1084,10 @@ operations
     -- is complete
     --updateHelperPlay(o: Play)
 
-<<<<<<< Updated upstream
     executePlay(p: Play)
     -- Adds the play to playHistory, places the tiles on the board, calculated
     -- the score and bonus of the play
     pre
-=======
-
->>>>>>> Stashed changes
 end -- Match Class
 
 class Leaderboard < Observer
