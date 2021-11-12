@@ -564,12 +564,15 @@ operations
     pre argIsValid: q <> null
     pre playerIsOnline: status = #ONLINE
     post joinSuccessful: ((queues->size() - queues@pre->size()) = 1) and
-        (queues->size() = 1) and join.joinedAt.equals(join.joinedAt.now)
+        join.joinedAt->forAll(d | d.equals(dob.now)) and
+        (queues->size() = 1)
 
     -- Removes the player from the match queue
     leaveQueue()
     begin
-        destroy self.queues->any(true);
+        for q in self.queues do
+            destroy q;
+        end;
     end
 
     pre playerIsInQueue: queues->size() = 1
@@ -580,7 +583,7 @@ operations
     -- Sends a request to the specified player
     sendMsg(c: Chat, msg: String)
     pre playerIsOnline: status = #ONLINE
-    pre argsAreValid: c <> null and msg->size() > 0
+    pre argsAreValid: c <> null and msg.size() > 0
     post msgSent: c.messages->last().getBody() = msg and
         (c.messages->size() - c@pre.messages->size()) = 1
     post msgDateSet: c.messages->last().sentDate.equals(
@@ -614,14 +617,14 @@ operations
     -- Creates a bug report
     reportBug(msg: String)
     pre playerIsOnline: status = #ONLINE
-    pre argIsValid: msg->size() > 0
+    pre argIsValid: msg.size() > 0
     post bugReported: (claims->size() - claims@pre->size()) = 1
     --post messageSet: need a way to access the last report to check this
 
     -- Creates a report against the specified player
     reportPlayer(p: Player, msg: String)
     pre playerIsOnline: status = #ONLINE
-    pre argIsValid: p <> null and msg->size() > 0
+    pre argIsValid: p <> null and msg.size() > 0
     post playerReported: (claims->size() - claims@pre->size()) = 1
     --post messageSet: need a way to access the last report to check this
 
@@ -672,7 +675,7 @@ attributes
     sentDate: DateTime
     seenDate: DateTime
 operations
-    --getters
+    getBody(): String = message
 
     -- Sets the message status to SEEN
     view()
@@ -713,7 +716,7 @@ operations
     -- Creates a new message
     createMessage(sender: Player, msg: String)
     pre isOpen: chatState.status->includes(#OPEN)
-    pre argIsValid: sender <> null and msg->size() > 0
+    pre argIsValid: sender <> null and msg.size() > 0
     post msgCreated: (messages->size() - messages@pre->size()) = 1 and
         messages->last().getBody() = msg
 
@@ -722,7 +725,7 @@ operations
     pre isOpen: chatState.status->includes(#OPEN)
     -- would also check if the player passed is the one that opened the chat
     -- if possible
-    pre argIsValid: msg->size() > 0
+    pre argIsValid: p <> null
     post noUnseenMsgs: not messages->exists(m |
         m.status = #UNSEEN and m.msgSender <> p)
 end -- Chat Class
