@@ -763,10 +763,26 @@ operations
     --accept()
     -- Mark the request as rejected
     --reject()
+    reject()
+        begin 
+            self.status := #REJECTED; 
+        end
+        pre: status = #PENDING;
+
     -- Mark the request as recinded
-    --recind()
+    recind()
+        begin 
+                self.status := #RECINDED; 
+        end
+        pre: status = #PENDING;
+
     -- Mark the request as lost
-    --block()
+    block()
+        begin 
+                self.status := #LOST; 
+        end
+        pre: status = #PENDING;
+
 end -- Request Class
 
 class MatchRequest < Request
@@ -1064,15 +1080,27 @@ operations
     -- is complete
     --updateHelperPlay(o: Play)
 
+<<<<<<< Updated upstream
     executePlay(p: Play)
     -- Adds the play to playHistory, places the tiles on the board, calculated
     -- the score and bonus of the play
     pre
+=======
+
+>>>>>>> Stashed changes
 end -- Match Class
 
 class Leaderboard < Observer
 operations
     --getters
+
+    
+    --for all to get players score
+    --    accept()
+    --    begin 
+    --        self.status := #ACCEPTED; 
+    --    end
+    --    pre: status = #PENDING;
 
     --update(o: Observable)
 
