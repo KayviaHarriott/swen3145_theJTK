@@ -564,7 +564,7 @@ operations
     pre argIsValid: q <> null
     pre playerIsOnline: status = #ONLINE
     post joinSuccessful: ((queues->size() - queues@pre->size()) = 1) and
-        (queues->size() = 1)
+        (queues->size() = 1) and join.joinedAt.equals(join.joinedAt.now)
 
     -- Removes the player from the match queue
     leaveQueue()
@@ -578,26 +578,66 @@ operations
         (queues->size() = 0)
 
     -- Sends a request to the specified player
-    --sendReq(p: Player, t: RequestType)
+    sendMsg(c: Chat, msg: String)
+    pre playerIsOnline: status = #ONLINE
+    pre argsAreValid: c <> null and msg->size() > 0
+    post msgSent: c.messages->last().getBody() = msg and
+        (c.messages->size() - c@pre.messages->size()) = 1
+    post msgDateSet: c.messages->last().sentDate.equals(
+        c.messages->last().sentDate.now)
+
+    -- Sends a request to the specified player
+    sendReq(p: Player, t: RequestType)
+    pre playerIsOnline: status = #ONLINE
+    pre argsAreValid: p <> null and t <> null
+    post reqSent: (sentReqs->size() - sentReqs@pre->size()) = 1
+    --post reqDateSet: need a way to access the last request to check this
+    --sentReqs->last().sentDate.equals(sentReqs->last().sentDate.now)
 
     -- Updates the status of a received request
-    --addressReq(req: Request, action: RequestStatus)
+    addressReq(req: Request, action: Boolean)
+    pre playerIsOnline: status = #ONLINE
+    pre argsAreValid: req <> null and action <> null
+    post reqAddressed: (action and req.status = #ACCEPTED) or
+        ((not action) and req.status = #REJECTED)
+    post activePeriodSet: req.activePeriod <> null and
+        req.activePeriod.getStart().equals(req.sentDate.now)
 
     -- Adds a player to the player's blocked list
-    -- blockPlayer(p: Player)
+    blockPlayer(p: Player)
+    pre playerIsOnline: status = #ONLINE
+    pre argIsValid: p <> null
+    post playerBlocked: blocked->includes(p)
+    -- and the block status is set to #BLOCKED
+    --post blockedDateSet:
 
     -- Creates a bug report
-    --reportBug(msg: String)
+    reportBug(msg: String)
+    pre playerIsOnline: status = #ONLINE
+    pre argIsValid: msg->size() > 0
+    post bugReported: (claims->size() - claims@pre->size()) = 1
+    --post messageSet: need a way to access the last report to check this
 
     -- Creates a report against the specified player
-    --reportBug(p: Player)
+    reportPlayer(p: Player, msg: String)
+    pre playerIsOnline: status = #ONLINE
+    pre argIsValid: p <> null and msg->size() > 0
+    post playerReported: (claims->size() - claims@pre->size()) = 1
+    --post messageSet: need a way to access the last report to check this
 
     -- Opens the specified chat (Should this take a player or the chat?)
-    --openChat(c: Chat)
+    openChat(c: Chat)
+    pre playerIsOnline: status = #ONLINE
+    pre argIsValid: c <> null
+    -- #TODO Turn this into an invariant as well
+    pre noOtherChatOpen: chatRooms->size() = 0
+    --post chatOpened: need a way to access the ChatState class to check
 
+    -- We don't have state tracking for what match is open or closed yet
     -- Closes the specified chat
     --closeChat(c: Chat)
 
+    -- We don't have state tracking for what match is open or closed yet
     -- Opens the specified match
     --openMatch(m: Match)
 
@@ -606,11 +646,23 @@ operations
 
     -- Executes actions that should occur once the player opens the app or
     -- logs in
-    --openApp()
+     openApp()
+    begin
+        self.status := #ONLINE;
+    end
+
+    pre notOnline: status = #OFFLINE
+    post statusUpdated: status = #ONLINE
 
     -- Executes actions that should occur once the player closes the app
     -- or logs out
-    --closeApp()
+    closeApp()
+    begin
+        self.status := #OFFLINE;
+    end
+
+    pre isNotOffline: status <> #OFFLINE
+    post statusUpdated: status = #OFFLINE
 end -- Player Class
 
 class Message < Identifiable
@@ -623,7 +675,13 @@ operations
     --getters
 
     -- Sets the message status to SEEN
-    --view()
+    view()
+    begin
+        self.status := #SEEN;
+    end
+
+    pre msgUnseen: status = #UNSEEN
+    post statusUpdated: status = #SEEN
 end -- Message Class
 
 class Notification
@@ -653,10 +711,20 @@ end
 class Chat < Observable
 operations
     -- Creates a new message
-    --createMessage(msg: String)
+    createMessage(sender: Player, msg: String)
+    pre isOpen: chatState.status->includes(#OPEN)
+    pre argIsValid: sender <> null and msg->size() > 0
+    post msgCreated: (messages->size() - messages@pre->size()) = 1 and
+        messages->last().getBody() = msg
 
     -- Marks all the newest received messages as seen
-    --view(p: Player)
+    view(p: Player)
+    pre isOpen: chatState.status->includes(#OPEN)
+    -- would also check if the player passed is the one that opened the chat
+    -- if possible
+    pre argIsValid: msg->size() > 0
+    post noUnseenMsgs: not messages->exists(m |
+        m.status = #UNSEEN and m.msgSender <> p)
 end -- Chat Class
 
 associationclass ChatState
@@ -668,10 +736,17 @@ attributes
     lastOpened: DateTime
 operations
     -- Sets the chat state to open
-    --setOpen() -- view all unseen messages and set ChatStatus to OPEN
+    setOpen() -- view all unseen messages and set ChatStatus to OPEN
+    pre notOpen: status = #CLOSED
+    post openned: status = #OPEN
+    post latestMsgSeen: not chatRooms.messages->exists(m |
+        m.status = #UNSEEN and participants->excludes(m.msgSender))
 
     -- Sets the chat state to closed
-    --setClosed() -- set lastOpened date and set ChatStatus to CLOSED
+    setClosed() -- set lastOpened date and set ChatStatus to CLOSED
+    pre openned: status = #OPEN
+    post closed: status = #CLOSED
+    post lastOpenedSet: lastOpened.equals(lastOpened.now)
 end -- End ChatState Association Class
 
 class Request < Identifiable, Observable
