@@ -832,11 +832,40 @@ between
     Match[*] role matchHistory ordered
 operations
     -- Makes a play
-    --play(tileSeq: OrderedSet(Letters),
-    --sRow: Integer, sCol: Integer, eRow: Integer, eCol: Integer)
+    play(sRow: Integer, sCol: Integer, dir: PlayDirection,
+    tileSeq: OrderedSet(Tile))
+    -- Creates a play then calls a function in match to execute it
+    pre playerIsInGame: players.status->includes(#PLAYING)
+    pre argsAreValid: Set{sRow, sCol, dir}->excludes(null) and
+        tileSeq->size() > 0
+    pre hasTilesUsed: tiles->includesAll(tileSeq)
+    post tilesRemoved: tiles->excludesAll(tileSeq)
+    post playLinked:
+        let
+            plays = match.playHistory,
+            lp = plays->last()
+        in lp.type = #PLAY and lp.time.equals(lp.time.now) and
+            (plays->size() - match@pre.playHistory->size()) = 1
 
     -- Passes a turn
-    --pass()
+    pass()
+    pre playerIsInGame: players.status->includes(#PLAYING)
+    post turnPassed:
+        let
+            plays = match.playHistory,
+            lp = plays->last()
+        in lp.type = #PASS and lp.time.equals(lp.time.now) and
+            (plays->size() - match@pre.playHistory->size()) = 1
+
+    -- Forfeits the game
+    quit()
+    pre playerIsInGame: players.status->includes(#PLAYING)
+    post matchQuit:
+        let
+            plays = match.playHistory,
+            lp = plays->last()
+        in lp.type = #QUIT and lp.time.equals(lp.time.now) and
+            (plays->size() - match@pre.playHistory->size()) = 1
 end -- Rack Association Class
 
 class Play < Identifiable, Observable
@@ -852,6 +881,39 @@ attributes
     time: DateTime
     multiplier: Real derived = calcMultiplier()
 operations
+    -- Initializes the play
+    init(sRow: Integer, sCol: Integer, dir: PlayDirection,
+    tileSeq: OrderedSet(Tile), t: PlayType)
+    pre firstPlayInCenter: match.playHistory->size() = 0 implies
+        (sRow = 8 and sCol = 8)
+    pre isValid: isValid()
+
+
+    -- #TODO: Use this to make an isPlayValid method in match
+    pre allTilesOnBoard: t = #PLAY implies
+        (let
+            grid = match.board
+        in if direction = #HORIZONTAL then
+                Sequence{startCol..15}->iterate(c; ans: Integer = 0 |
+                    if not grid.slots[startRow, c].isEmpty() and
+                    grid.slots[startRow, c].filledAt.equals(time) then
+                        ans + 1
+                    else ans endif
+                ) >= tiles->size()
+            else --if direction = #VERTICAL then
+                Sequence{startRow..15}->iterate(r; ans: Integer = 0 |
+                    if not grid.slots[r, startCol].isEmpty() and
+                    grid.slots[r, startCol].filledAt.equals(time) then
+                        ans + 1
+                    else ans endif
+                ) >= tiles->size()
+            endif
+        )
+
+    -- #TODO: Use this to make an isPlayValid method in match
+    --pre allWordsSpeltAreValidAndOnlySpeltWordsLinked: same an invariant
+
+    -- #TODO: Use this to make an calcPlayScore method in match
     -- Calculates the points accumulated by the placement of the tiles on the
     -- board
     calcScore(): Integer =
@@ -866,6 +928,7 @@ operations
         in (flatScore * multiplier).floor
     pre isAPlay: type = #PLAY
 
+    -- #TODO: Use this to make an calcPlayScoreMultiplier method in match
     calcMultiplier(): Real =
         if words.category->excluding(#NONE)
         ->includes(match.category) then
@@ -874,6 +937,39 @@ operations
             1
         endif
     pre isAPlay: type = #PLAY
+
+    -- #TODO: Use this to make an isPlayValid method in match
+    isValid(sRow: Integer, sCol: Integer, dir: PlayDirection,
+    tileSeq: OrderedSet(Tile), t: PlayType): Boolean =
+        ( -- intersectsWithAnotherWord
+        (t = #PLAY and match.playHistory->first() <> self) implies
+            (let
+                grid = match.board,
+                r = startRow,
+                c = startCol,
+                tcnt = tileSeq->size()
+            in if direction = #HORIZONTAL then
+                    Sequence{1..tcnt}->iterate(o; ans: Boolean = false |
+                        ans or
+                        (grid.slots[r, c + o - 1].isEmpty() implies
+                            (not Set{grid.slots[r - 1, c + o - 1].tile,
+                            grid.slots[r + 1, c + o - 1].tile}->isEmpty()))
+                    ) or grid.slots[r, c + tcnt].tile <> null
+                else --if direction = #VERTICAL then
+                    Sequence{1..tcnt}->iterate(o; ans: Boolean = false |
+                        ans or
+                        (grid.slots[r + o - 1, c].isEmpty() implies
+                            (not Set{grid.slots[r + o - 1, c - 1].tile,
+                            grid.slots[r + o - 1, c + 1].tile}->isEmpty()))
+                    ) or grid.slots[r + tcnt, c].tile <> null
+                endif
+            )
+        ) and
+    pre argsAreValid: (t = #PLAY and Set{sRow, sCol, dir}->excludes(null) and
+            tileSeq->size() > 0) or
+        (Set{#PASS, #QUIT}->includes(t) and
+        Set{sRow, sCol, dir}->isEmpty() and
+        tileSeq->isEmpty())
 end -- Play Class
 
 class Board
@@ -883,9 +979,16 @@ class Slot
 attributes
     filledAt: DateTime
 operations
-    --getters and setters
     getTile(): Tile = tile
     getTileString(): String = getTile().getLetterString()
+
+    setTile(t: Tile)
+    begin
+        insert (self, tile) into Fill;
+    end
+
+    pre isEmpty: isEmpty()
+    post isFilled: getTile() = t
 
     isEmpty(): Boolean = tile->isEmpty()
 end -- Slot Class
@@ -960,6 +1063,11 @@ operations
     -- notification if they don't or signals to the players that the match
     -- is complete
     --updateHelperPlay(o: Play)
+
+    executePlay(p: Play)
+    -- Adds the play to playHistory, places the tiles on the board, calculated
+    -- the score and bonus of the play
+    pre
 end -- Match Class
 
 class Leaderboard < Observer
