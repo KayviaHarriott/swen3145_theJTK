@@ -2,7 +2,7 @@
 --! @authors: Jason Hunter, Kayvia Harriott, Tashna-Gail Williams
 --! Created on: 2021-10-11
 --! @version: 0.4.8
---! Last Updated: 2021-11-11 19:48:58
+--! Last Updated: 2021-11-12 10:29:05
 ------------------------------------------------------------------------------
 
 model scrumble
@@ -682,29 +682,29 @@ attributes
     type: RequestType
 operations
     accept()
-        begin 
-            self.status := #ACCEPTED; 
+        begin
+            self.status := #ACCEPTED;
         end
         pre: status = #PENDING;
 
     -- Mark the request as rejected
     reject()
-        begin 
-            self.status := #REJECTED; 
+        begin
+            self.status := #REJECTED;
         end
         pre: status = #PENDING;
 
     -- Mark the request as recinded
     recind()
-        begin 
-                self.status := #RECINDED; 
+        begin
+                self.status := #RECINDED;
         end
         pre: status = #PENDING;
 
     -- Mark the request as lost
     block()
-        begin 
-                self.status := #LOST; 
+        begin
+                self.status := #LOST;
         end
         pre: status = #PENDING;
 end -- Request Class
@@ -772,11 +772,23 @@ between
     Match[*] role matchHistory ordered
 operations
     -- Makes a play
-    --play(tileSeq: OrderedSet(Letters),
-    --sRow: Integer, sCol: Integer, eRow: Integer, eCol: Integer)
+    triggerPlay(sRow: Integer, sCol: Integer, dir: PlayDirection,
+    tileSeq: OrderedSet(Tile))
+    -- Essentially a wrapper for the play method in match
+    pre playerIsInGame: players.status->includes(#PLAYING)
+    pre argsAreValid: Set{sRow, sCol, dir}->excludes(null) and
+        tileSeq->size() > 0 and tiles->includesAll(tileSeq)
+    post tilesRemoved: tiles->excludesAll(tileSeq)
 
     -- Passes a turn
-    --pass()
+    triggerPass()
+    pre playerIsInGame: players.status->includes(#PLAYING)
+    post: true
+
+    -- Forfeits the game
+    triggerQuit()
+    pre playerIsInGame: players.status->includes(#PLAYING)
+    post: true
 end -- Rack Association Class
 
 class Play < Identifiable, Observable
@@ -792,6 +804,16 @@ attributes
     time: DateTime
     multiplier: Real derived = calcMultiplier()
 operations
+    -- Initializes the play
+    init(sRow: Integer, sCol: Integer, dir: PlayDirection,
+    tileSeq: OrderedSet(Tile), t: PlayType)
+    -- Essentially a wrapper for the executePlay method in match
+    pre argsAreValid: t = #PLAY implies
+        Set{sRow, sCol, dir}->excludes(null) and tileSeq->size() > 0
+    post attributesSet: startRow = sRow and startCol = sCol and
+        direction = dir and type = t and time <> null and
+        time.equals(time.now)
+
     -- Calculates the points accumulated by the placement of the tiles on the
     -- board
     calcScore(): Integer =
@@ -805,6 +827,7 @@ operations
                 )
         in (flatScore * multiplier).floor
     pre isAPlay: type = #PLAY
+    post: true
 
     calcMultiplier(): Real =
         if words.category->excluding(#NONE)
@@ -814,6 +837,7 @@ operations
             1
         endif
     pre isAPlay: type = #PLAY
+    post: true
 end -- Play Class
 
 class Board
@@ -900,6 +924,92 @@ operations
     -- notification if they don't or signals to the players that the match
     -- is complete
     --updateHelperPlay(o: Play)
+
+    executePass(r: Rack)
+    -- Creates a play with type pass
+    pre argIsValid: r <> null
+    post playMade:
+            let
+                lp = playHistory->last()
+            in lp.type = #PASS and lp.time.equals(lp.time.now) and
+                (playHistory->size() - match@pre.playHistory->size()) = 1
+
+    executeQuit(r: Rack)
+    -- Creates a play with type pass
+    pre argIsValid: r <> null
+    post playMade:
+            let
+                lp = playHistory->last()
+            in lp.type = #QUIT and lp.time.equals(lp.time.now) and
+                (playHistory->size() - match@pre.playHistory->size()) = 1
+
+    executePlay(r: Rack, sRow: Integer, sCol: Integer, dir: PlayDirection,
+    tileSeq: OrderedSet(Tile))
+    -- Places the tiles on the board, calculates the score and bonus of the
+    -- play
+    pre playIsValid: playHelperIsPlayValid(sRow, sCol, dir, tileSeq->size())
+    post playMade:
+            let
+                lp = playHistory->last()
+            in lp.type = #PLAY and lp.time.equals(lp.time.now) and
+                (playHistory->size() - match@pre.playHistory->size()) = 1
+    post tilesPlaced:
+        if dir = #HORIZONTAL then
+            Sequence{sCol..15}->iterate(c; ans: Set(Tile) = Set{} |
+                ans->including(board.slot[sRow, c])
+            )->includesAll(tileSeq)
+        else --if dir = #VERTICAL then
+            Sequence{sRow..15}->iterate(r; ans: Set(Tile) = Set{} |
+                ans->including(board.slot[r, sCol])
+            )->includesAll(tileSeq)
+        endif
+
+    playHelperAllTilesFit(sRow: Integer, sCol: Integer, dir: PlayDirection,
+    tcnt: Integer): Boolean =
+        if dir = #HORIZONTAL then
+            Sequence{sCol..15}->iterate(c; ans: Integer = 0 |
+                if board.slots[sRow, c].isEmpty() then
+                    ans + 1
+                else ans endif
+            ) >= tcnt
+        else --if dir = #VERTICAL then
+            Sequence{sRow..15}->iterate(r; ans: Integer = 0 |
+                if board.slots[r, sCol].isEmpty() then
+                    ans + 1
+                else ans endif
+            ) >= tcnt
+        endif
+    pre argsAreValid: Sequence{1..15}->includesAll(Set{sRow, sCol, tcnt}) and
+        dir <> null
+
+    playHelperPlayIntersects(sRwo: Integer, sCol: Integer, dir: PlayDirection,
+    tcnt: Integer): Boolean =
+        if dir = #HORIZONTAL then
+            Sequence{1..tcnt}->iterate(o; ans: Boolean = false |
+                ans or
+                (board.slots[sRow, sCol + o - 1].isEmpty() implies
+                    (not Set{board.slots[sRow - 1, sCol + o - 1].tile,
+                    board.slots[sRow + 1, sCol + o - 1].tile}->isEmpty()))
+            ) or board.slots[sRow, sCol + tcnt].tile <> null
+        else --if dir = #VERTICAL then
+            Sequence{1..tcnt}->iterate(o; ans: Boolean = false |
+                ans or
+                (board.slots[sRow + o - 1, sCol].isEmpty() implies
+                    (not Set{board.slots[sRow + o - 1, sCol - 1].tile,
+                    board.slots[sRow + o - 1, sCol + 1].tile}->isEmpty()))
+            ) or board.slots[sRow + tcnt, sCol].tile <> null
+        endif
+    pre argsAreValid: Sequence{1..15}->includesAll(Set{sRow, sCol, tcnt}) and
+        dir <> null
+
+    -- #TODO: Use this to make an isPlayValid method in match
+    playHelperIsPlayValid(sRow: Integer, sCol: Integer, dir: PlayDirection,
+    tcnt: Integer): Boolean =
+        playHelperAllTilesFit(sRow, sCol, dir, tileSeq->size()) and
+        ((match.playHistory->size() > 0 and
+            playHelperPlayIntersects(sRow, sCol, dir, tileSeq->size())) or
+        (match.playHistory->size() = 0 and sRow = 8 and sCol = 8 and
+                dir <> null and tileSeq->size() > 0))
 end -- Match Class
 
 class Leaderboard < Observer
