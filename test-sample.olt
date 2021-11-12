@@ -254,8 +254,8 @@
     <node id="rack1p2" sizeCalculated="true" type="Object">
         <name>rack1p2</name>
         <strategy type="org.tzi.use.gui.views.diagrams.elements.positioning.StrategyRelativeToCorner">
-            <userOffsetX>2.0</userOffsetX>
-            <userOffsetY>-127.0</userOffsetY>
+            <userOffsetX>4.0</userOffsetX>
+            <userOffsetY>-111.0</userOffsetY>
             <basisDeltaX>ABSOLUTE</basisDeltaX>
             <deltaX>0.0</deltaX>
             <maxDeltaX>1.7976931348623157E308</maxDeltaX>
@@ -7847,7 +7847,7 @@
                 <name>1</name>
                 <strategy type="org.tzi.use.gui.views.diagrams.elements.positioning.StrategyFixed">
                     <x>1816.0</x>
-                    <y>278.0</y>
+                    <y>263.0</y>
                 </strategy>
                 <id>1</id>
                 <specialid>0</specialid>
@@ -7888,8 +7888,8 @@
             <node id="rack1p2" sizeCalculated="true" type="Object">
                 <name>rack1p2</name>
                 <strategy type="org.tzi.use.gui.views.diagrams.elements.positioning.StrategyRelativeToCorner">
-                    <userOffsetX>2.0</userOffsetX>
-                    <userOffsetY>-127.0</userOffsetY>
+                    <userOffsetX>4.0</userOffsetX>
+                    <userOffsetY>-111.0</userOffsetY>
                     <basisDeltaX>ABSOLUTE</basisDeltaX>
                     <deltaX>0.0</deltaX>
                     <maxDeltaX>1.7976931348623157E308</maxDeltaX>
