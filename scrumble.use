@@ -553,7 +553,10 @@ operations
     --updateHelperMatchReq(o: MatchRequest)
 
     -- Sends a message in a given chat
-    --sendMsg(c: Chat, msg: String)
+    sendMsg(c: Chat, msg: String)
+        begin
+            --c.append(msg);
+        end
 
     -- Adds the player to the match queue
     joinQueue(q: Queue)
@@ -653,7 +656,6 @@ end
 class Chat < Observable
 operations
     -- Creates a new message
-    --createMessage(msg: String)
 
     -- Marks all the newest received messages as seen
     --view(p: Player)
@@ -669,9 +671,22 @@ attributes
 operations
     -- Sets the chat state to open
     --setOpen() -- view all unseen messages and set ChatStatus to OPEN
+    setOpen()
+        begin
+            self.status := #OPEN;
+        end
+        pre: status = #CLOSED;
 
     -- Sets the chat state to closed
     --setClosed() -- set lastOpened date and set ChatStatus to CLOSED
+    setClosed()
+        begin
+            self.status := #CLOSED;
+            --self.lastOpened := ;
+        end
+        pre: status = #OPEN;
+
+
 end -- End ChatState Association Class
 
 class Request < Identifiable, Observable
@@ -716,6 +731,7 @@ attributes
 operations
     -- Mark the request as accepted and creates a new match
     --accept()
+
 end -- MatchRequest Class
 
 associationclass Block
@@ -727,10 +743,21 @@ attributes
     status: BlockStatus init: #BLOCKED
 operations
     -- Mark a player as blocked
-    --block()
+    block()
+    begin 
+            self.status := #BLOCKED; 
+    end
+    pre: status = #UNBLOCKED;
 
     -- Mark a player as unblocked
     --unblock()
+    unblock()
+    begin 
+            self.status := #UNBLOCKED; 
+    end
+    pre: status = #BLOCKED;
+
+
 end -- Block Association Class
 
 class Report < Observable
