@@ -556,7 +556,26 @@ operations
     --sendMsg(c: Chat, msg: String)
 
     -- Adds the player to the match queue
-    --joinQueue
+    joinQueue(q: Queue)
+    begin
+        new Join() between (q, self);
+    end
+
+    pre argIsValid: q <> null
+    pre playerIsOnline: status = #ONLINE
+    post joinSuccessful: ((queues->size() - queues@pre->size()) = 1) and
+        (queues->size() = 1)
+
+    -- Removes the player from the match queue
+    leaveQueue()
+    begin
+        destroy self.queues->any(true);
+    end
+
+    pre playerIsInQueue: queues->size() = 1
+    pre playerIsOnline: status = #ONLINE
+    post leaveSuccessful: ((queues->size() - queues@pre->size()) = -1) and
+        (queues->size() = 0)
 
     -- Sends a request to the specified player
     --sendReq(p: Player, t: RequestType)
@@ -1303,10 +1322,10 @@ context Report
 -- End Report Constraints
 
 
-context Queue
+context Join
     -- Only unranked matches may be untimed
     inv noUntimedRankedMatches: matchType = #RANKED implies timed
--- End Queue Constraints
+-- End Join Constraints
 
 context Rack
     -- No empty spaces unless there are no more tiles in the letterBag
