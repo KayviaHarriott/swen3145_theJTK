@@ -1,8 +1,8 @@
 ------------------------------------------------------------------------------
 --! @authors: Jason Hunter, Kayvia Harriott, Tashna-Gail Williams
 --! Created on: 2021-11-02
---! @version: 0.4.2
---! Last Updated: 2021-11-11 04:43:01
+--! @version: 0.4.4
+--! Last Updated: 2021-11-11 19:48:32
 ------------------------------------------------------------------------------
 
 -- PLEASE DON'T EDIT THIS FILE DIRECTLY, COPY AND PASTE IT AND WORK ON THAT
@@ -181,51 +181,51 @@ reset
 !size := Sequence{1..15}
 !for r in size do for c in size do s := new Slot('b1R' + r.toString() + 'C' + c.toString()); insert (board1{r, c}, s) into Grid; end; end;
 
-!new LetterBag('lbag1')
-!insert (lbag1,board1) into LetterOptions
+!new TileBag('tbag1')
+!insert (tbag1,board1) into LetterOptions
 !lval := Sequence{'A', 'B', 'C', 'D', 'E', 'F', 'G', 'H', 'I', 'J', 'K', 'L', 'M', 'N', 'O', 'P', 'Q', 'R', 'S', 'T', 'U', 'V', 'W', 'X', 'Y', 'Z'}
 !lcnt := Sequence{ 9 ,  2 ,  2 ,  4 , 12 ,  2 ,  3 ,  2 ,  9 ,  1 ,  1 ,  4 ,  2 ,  6 ,  8 ,  2 ,  1 ,  6 ,  4 ,  6 ,  4 ,  2 ,  2 ,  1 ,  2 ,  1}
 !tpt  := Sequence{ 1 ,  3 ,  3 ,  2 ,  1 ,  4 ,  2 ,  4 ,  1 ,  8 ,  5 ,  1 ,  3 ,  1 ,  1 ,  3 , 10 ,  1 ,  1 ,  1 ,  1 ,  4 ,  4 ,  8 ,  4 , 10}
-!for i in Sequence{1..26} do for j in Sequence{1..lcnt->at(i)} do l := new Letter(lval->at(i) + j.toString()); l.letter := lval->at(i); t := new Tile('m1Tile' + lval->at(i) + j.toString()); t.points := tpt->at(i); insert (t, l) into Mark; insert (lbag1, t) into Stock end; end;
+!for i in Sequence{1..26} do for j in Sequence{1..lcnt->at(i)} do l := new Letter(lval->at(i) + j.toString()); l.letter := lval->at(i); t := new Tile('m1Tile' + lval->at(i) + j.toString()); t.points := tpt->at(i); insert (t, l) into Mark; insert (tbag1, t) into Stock end; end;
 
 !new Rack('rack1p2') between (player2,match1)
-!delete (lbag1, m1TileW1) from Stock
+!delete (tbag1, m1TileW1) from Stock
 !insert (rack1p2, m1TileW1) into Hold
-!delete (lbag1, m1TileO1) from Stock
+!delete (tbag1, m1TileO1) from Stock
 !insert (rack1p2, m1TileO1) into Hold
-!delete (lbag1, m1TileR1) from Stock
+!delete (tbag1, m1TileR1) from Stock
 !insert (rack1p2, m1TileR1) into Hold
-!delete (lbag1, m1TileD1) from Stock
+!delete (tbag1, m1TileD1) from Stock
 !insert (rack1p2, m1TileD1) into Hold
-!delete (lbag1, m1TileE1) from Stock
+!delete (tbag1, m1TileE1) from Stock
 !insert (rack1p2, m1TileE1) into Hold
-!delete (lbag1, m1TileE2) from Stock
+!delete (tbag1, m1TileE2) from Stock
 !insert (rack1p2, m1TileE2) into Hold
-!delete (lbag1, m1TileS1) from Stock
+!delete (tbag1, m1TileS1) from Stock
 !insert (rack1p2, m1TileS1) into Hold
-!delete (lbag1, m1TileN1) from Stock
+!delete (tbag1, m1TileN1) from Stock
 !insert (rack1p2, m1TileN1) into Hold
-!delete (lbag1, m1TileT1) from Stock
+!delete (tbag1, m1TileT1) from Stock
 !insert (rack1p2, m1TileT1) into Hold
 
 !new Rack('rack2p1') between (player1,match1)
-!delete (lbag1, m1TileD2) from Stock
+!delete (tbag1, m1TileD2) from Stock
 !insert (rack2p1, m1TileD2) into Hold
-!delete (lbag1, m1TileO2) from Stock
+!delete (tbag1, m1TileO2) from Stock
 !insert (rack2p1, m1TileO2) into Hold
-!delete (lbag1, m1TileR2) from Stock
+!delete (tbag1, m1TileR2) from Stock
 !insert (rack2p1, m1TileR2) into Hold
-!delete (lbag1, m1TileO3) from Stock
+!delete (tbag1, m1TileO3) from Stock
 !insert (rack2p1, m1TileO3) into Hold
-!delete (lbag1, m1TileE3) from Stock
+!delete (tbag1, m1TileE3) from Stock
 !insert (rack2p1, m1TileE3) into Hold
-!delete (lbag1, m1TileA1) from Stock
+!delete (tbag1, m1TileA1) from Stock
 !insert (rack2p1, m1TileA1) into Hold
-!delete (lbag1, m1TileI1) from Stock
+!delete (tbag1, m1TileI1) from Stock
 !insert (rack2p1, m1TileI1) into Hold
-!delete (lbag1, m1TileS2) from Stock
+!delete (tbag1, m1TileS2) from Stock
 !insert (rack2p1, m1TileS2) into Hold
-!delete (lbag1, m1TileA2) from Stock
+!delete (tbag1, m1TileA2) from Stock
 !insert (rack2p1, m1TileA2) into Hold
 
 !new DateTime('m1Play1Time')
@@ -263,13 +263,13 @@ reset
 !insert (b1R11C8, m1TileD1) into Fill
 !b1R11C8.filledAt := m1Play1Time
 -- Get new tiles from the LetterBag
-!delete (lbag1, m1TileA3) from Stock
+!delete (tbag1, m1TileA3) from Stock
 !insert (rack1p2, m1TileA3) into Hold
-!delete (lbag1, m1TileS3) from Stock
+!delete (tbag1, m1TileS3) from Stock
 !insert (rack1p2, m1TileS3) into Hold
-!delete (lbag1, m1TileM1) from Stock
+!delete (tbag1, m1TileM1) from Stock
 !insert (rack1p2, m1TileM1) into Hold
-!delete (lbag1, m1TileN2) from Stock
+!delete (tbag1, m1TileN2) from Stock
 !insert (rack1p2, m1TileN2) into Hold
 
 !new DateTime('m1Play2Time')
@@ -303,11 +303,11 @@ reset
 !insert (b1R11C11, m1TileR2) into Fill
 !b1R11C11.filledAt := m1Play2Time
 -- Get new tiles from the LetterBag
-!delete (lbag1, m1TileK1) from Stock
+!delete (tbag1, m1TileK1) from Stock
 !insert (rack2p1, m1TileK1) into Hold
-!delete (lbag1, m1TileJ1) from Stock
+!delete (tbag1, m1TileJ1) from Stock
 !insert (rack2p1, m1TileJ1) into Hold
-!delete (lbag1, m1TileL1) from Stock
+!delete (tbag1, m1TileL1) from Stock
 !insert (rack2p1, m1TileL1) into Hold
 
 !new DateTime('m1Play3Time')
@@ -349,15 +349,15 @@ reset
 !insert (b1R14C11, m1TileM1) into Fill
 !b1R14C11.filledAt := m1Play3Time
 -- Get new tiles from the LetterBag
-!delete (lbag1, m1TileA4) from Stock
+!delete (tbag1, m1TileA4) from Stock
 !insert (rack1p2, m1TileA4) into Hold
-!delete (lbag1, m1TileB1) from Stock
+!delete (tbag1, m1TileB1) from Stock
 !insert (rack1p2, m1TileB1) into Hold
-!delete (lbag1, m1TileI2) from Stock
+!delete (tbag1, m1TileI2) from Stock
 !insert (rack1p2, m1TileI2) into Hold
-!delete (lbag1, m1TileT2) from Stock
+!delete (tbag1, m1TileT2) from Stock
 !insert (rack1p2, m1TileT2) into Hold
-!delete (lbag1, m1TileU1) from Stock
+!delete (tbag1, m1TileU1) from Stock
 !insert (rack1p2, m1TileU1) into Hold
 
 !new DateTime('m1Play4Time')
@@ -388,9 +388,9 @@ reset
 !insert (b1R10C12, m1TileE3) into Fill
 !b1R10C12.filledAt := m1Play4Time
 -- Get new tiles from the LetterBag
-!delete (lbag1, m1TileC1) from Stock
+!delete (tbag1, m1TileC1) from Stock
 !insert (rack2p1, m1TileC1) into Hold
-!delete (lbag1, m1TileE4) from Stock
+!delete (tbag1, m1TileE4) from Stock
 !insert (rack2p1, m1TileE4) into Hold
 
 check
