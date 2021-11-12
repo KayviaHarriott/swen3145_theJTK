@@ -1,8 +1,8 @@
 ------------------------------------------------------------------------------
 --! @authors: Jason Hunter, Kayvia Harriott, Tashna-Gail Williams
 --! Created on: 2021-10-11
---! @version: 0.4.7
---! Last Updated: 2021-11-11 04:43:16
+--! @version: 0.4.8
+--! Last Updated: 2021-11-11 19:48:58
 ------------------------------------------------------------------------------
 
 model scrumble
@@ -830,11 +830,11 @@ operations
     pre argIsValid: l <> null
 end -- Letter Class
 
-class LetterBag
+class TileBag
 operations
     -- Randomly picks a tile from the bag
     --remove
-end -- LetterBag Class
+end -- TileBag Class
 
 class Word
 attributes
@@ -1000,12 +1000,12 @@ aggregation Fill between
 end -- End Fill Aggregation
 
 association LetterOptions between
-    LetterBag[1]
+    TileBag[1]
     Board[1]
 end -- End LetterOptions Association
 
 aggregation Stock between
-    LetterBag[0..1]
+    TileBag[0..1]
     Tile[*] role tiles
 end -- End Stock Aggregation
 
@@ -1328,9 +1328,9 @@ context Join
 -- End Join Constraints
 
 context Rack
-    -- No empty spaces unless there are no more tiles in the letterBag
+    -- No empty spaces unless there are no more tiles in the tileBag
     inv noEmptySpaceUnlessLetterBagEmpty: tiles->size() = 9 or
-        (tiles->size() < 9 and matchHistory.board.letterBag.tiles->size() = 0)
+        (tiles->size() < 9 and matchHistory.board.tileBag.tiles->size() = 0)
 -- End Rack Constraints
 
 context Play
@@ -1522,7 +1522,7 @@ context Tile
 
     -- Ensure that tiles are held by only one object at a time
     inv onlyInOnePlace:
-        Set{letterBag, rack, slot}->excluding(null)->size() = 1
+        Set{tileBag, rack, slot}->excluding(null)->size() = 1
 -- End Tile Constraints
 
 context Slot
@@ -1585,7 +1585,7 @@ context Match
     -- Ensure all Tiles with the same letter have the same score
     inv consistentTilePointValues:
         let
-            bagTiles = board.letterBag.tiles,
+            bagTiles = board.tileBag.tiles,
             rackTiles = rack.tiles,
             boardTiles = board.slots.tile,
             allTiles = bagTiles->union(rackTiles->union(boardTiles))
@@ -1597,7 +1597,7 @@ context Match
     -- must be a fixed set of tiles in circulation for a given match
     inv fixedNumberOfLettersInMatch:
         let
-            bagLetters = board.letterBag.tiles.letter->asSet(),
+            bagLetters = board.tileBag.tiles.letter->asSet(),
             rackLetters = rack.tiles.letter->asSet(),
             boardLetters = board.slots.tile.letter->asSet(),
             allTiles = bagLetters->union(rackLetters->union(boardLetters))
