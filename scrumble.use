@@ -775,19 +775,19 @@ operations
     triggerPlay(sRow: Integer, sCol: Integer, dir: PlayDirection,
     tileSeq: OrderedSet(Tile))
     -- Essentially a wrapper for the play method in match
-    pre playerIsInGame: players.status->includes(#PLAYING)
+    pre playerIsInGame: players.status = #PLAYING
     pre argsAreValid: Set{sRow, sCol, dir}->excludes(null) and
         tileSeq->size() > 0 and tiles->includesAll(tileSeq)
     post tilesRemoved: tiles->excludesAll(tileSeq)
 
     -- Passes a turn
     triggerPass()
-    pre playerIsInGame: players.status->includes(#PLAYING)
+    pre playerIsInGame: players.status = #PLAYING
     post: true
 
     -- Forfeits the game
     triggerQuit()
-    pre playerIsInGame: players.status->includes(#PLAYING)
+    pre playerIsInGame: players.status = #PLAYING
     post: true
 end -- Rack Association Class
 
@@ -932,7 +932,7 @@ operations
             let
                 lp = playHistory->last()
             in lp.type = #PASS and lp.time.equals(lp.time.now) and
-                (playHistory->size() - match@pre.playHistory->size()) = 1
+                (playHistory->size() - playHistory@pre->size()) = 1
 
     executeQuit(r: Rack)
     -- Creates a play with type pass
@@ -941,7 +941,7 @@ operations
             let
                 lp = playHistory->last()
             in lp.type = #QUIT and lp.time.equals(lp.time.now) and
-                (playHistory->size() - match@pre.playHistory->size()) = 1
+                (playHistory->size() - playHistory@pre->size()) = 1
 
     executePlay(r: Rack, sRow: Integer, sCol: Integer, dir: PlayDirection,
     tileSeq: OrderedSet(Tile))
@@ -952,15 +952,15 @@ operations
             let
                 lp = playHistory->last()
             in lp.type = #PLAY and lp.time.equals(lp.time.now) and
-                (playHistory->size() - match@pre.playHistory->size()) = 1
+                (playHistory->size() - playHistory@pre->size()) = 1
     post tilesPlaced:
         if dir = #HORIZONTAL then
             Sequence{sCol..15}->iterate(c; ans: Set(Tile) = Set{} |
-                ans->including(board.slot[sRow, c])
+                ans->including(board.slots[sRow, c].getTile())
             )->includesAll(tileSeq)
         else --if dir = #VERTICAL then
             Sequence{sRow..15}->iterate(r; ans: Set(Tile) = Set{} |
-                ans->including(board.slot[r, sCol])
+                ans->including(board.slots[r, sCol].getTile())
             )->includesAll(tileSeq)
         endif
 
@@ -982,7 +982,7 @@ operations
     pre argsAreValid: Sequence{1..15}->includesAll(Set{sRow, sCol, tcnt}) and
         dir <> null
 
-    playHelperPlayIntersects(sRwo: Integer, sCol: Integer, dir: PlayDirection,
+    playHelperPlayIntersects(sRow: Integer, sCol: Integer, dir: PlayDirection,
     tcnt: Integer): Boolean =
         if dir = #HORIZONTAL then
             Sequence{1..tcnt}->iterate(o; ans: Boolean = false |
@@ -1002,14 +1002,13 @@ operations
     pre argsAreValid: Sequence{1..15}->includesAll(Set{sRow, sCol, tcnt}) and
         dir <> null
 
-    -- #TODO: Use this to make an isPlayValid method in match
     playHelperIsPlayValid(sRow: Integer, sCol: Integer, dir: PlayDirection,
     tcnt: Integer): Boolean =
-        playHelperAllTilesFit(sRow, sCol, dir, tileSeq->size()) and
-        ((match.playHistory->size() > 0 and
-            playHelperPlayIntersects(sRow, sCol, dir, tileSeq->size())) or
-        (match.playHistory->size() = 0 and sRow = 8 and sCol = 8 and
-                dir <> null and tileSeq->size() > 0))
+        playHelperAllTilesFit(sRow, sCol, dir, tcnt) and
+        ((playHistory->size() > 0 and
+            playHelperPlayIntersects(sRow, sCol, dir, tcnt)) or
+        (playHistory->size() = 0 and sRow = 8 and sCol = 8 and
+                dir <> null and tcnt > 0))
 end -- Match Class
 
 class Leaderboard < Observer
