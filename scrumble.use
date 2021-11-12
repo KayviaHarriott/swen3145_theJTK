@@ -760,9 +760,13 @@ attributes
     type: RequestType
 operations
     -- Mark the request as accepted
-    --accept()
+    accept()
+        begin 
+            self.status := #ACCEPTED; 
+        end
+        pre: status = #PENDING;
+
     -- Mark the request as rejected
-    --reject()
     reject()
         begin 
             self.status := #REJECTED; 
