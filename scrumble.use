@@ -1,30 +1,44 @@
 ------------------------------------------------------------------------------
 --! @authors: Jason Hunter, Kayvia Harriott, Tashna-Gail Williams
 --! Created on: 2021-10-11
---! @version: 0.4
---! Last Updated: 2021-11-03 11:46:01
+--! @version: 0.4.7
+--! Last Updated: 2021-11-11 04:43:16
 ------------------------------------------------------------------------------
 
 model scrumble
 
-enum PlayerStatus {ONLINE, OFFLINE, AWAY, PLAYING}
-enum ProfileState {PRIVATE, PUBLIC}
-enum MatchType {RANKED, UNRANKED}
-enum Category {ANIMAL, MUSIC, MOVIES, FOOD, BOOKS, COUNTRIES, NONE}
-enum PlayType {PLAY, PASS, QUIT}
-enum RequestStatus {PENDING, ACCEPTED, REJECTED, RECINDED, LOST}
-enum MatchStatus {INPROGRESS, COMPLETE, ABANDONED}
-enum RequestType {FRIEND, MESSAGE, MATCH}
 enum BlockStatus {BLOCKED, UNBLOCKED}
-enum MessageStatus {UNSEEN, SEEN}
 enum ChatStatus {OPEN, CLOSED}
-enum NotificationType {CHAT, REQUEST, REMINDER}
+enum MatchStatus {INPROGRESS, COMPLETE, ABANDONED}
+enum MessageStatus {UNSEEN, SEEN}
+enum PlayerStatus {ONLINE, OFFLINE, AWAY, PLAYING}
+enum ReportStatus {UNRESOLVED, UNDER_REVIEW, RESOLVED}
+enum RequestStatus {PENDING, ACCEPTED, REJECTED, RECINDED, LOST}
+
+enum MatchType {RANKED, UNRANKED}
+enum PlayType {PLAY, PASS, QUIT}
+enum ReportType {BUG, PLAYER}
+enum RequestType {FRIEND, MESSAGE, MATCH}
+
+enum Category {ANIMAL, MUSIC, MOVIES, FOOD, BOOKS, COUNTRIES, NONE}
+enum ProfileState {PRIVATE, PUBLIC}
+enum PlayDirection {HORIZONTAL, VERTICAL}
 
 --! @TODO:
---!     Add classes to handle game support (claim, claim status enum,
---!         claims can be reporting players or bug reports)
---!     Add attributes to represent the rest of the player's profile data
---!     no plays in the future
+--!     - Add attributes to represent the rest of the player's profile data
+--!     - Rack might need an enum to indicate that a player has a specific
+--!       match open so it doesn't generate notifs when the match is open and
+--!       a play is made
+--!     - Class to represent the match queue for players waiting to join a
+--!       match. It would have a never ending loop constantly running to empty
+--!       a queue of players and make matches. It would be observable by
+--!       Player so a player can get updates when a match is made. We may need
+--!       a queue for each type of match
+--!     - If we can delete messages and reply to messages then we would add
+--!       methods for those as well
+--!     - If Datetime becomes observable then would it still be a datatype?
+--!     - Figure out how to manage adding and removing words since you
+--!       wouldn't want changes to affect past games
 --!
 --!     DESIGN PATTERN REFINEMENTS
 --!         Observer Pattern
@@ -45,6 +59,7 @@ enum NotificationType {CHAT, REQUEST, REMINDER}
 --!             | player      | request  |
 --!             | match       | play     |
 --!             | player      | chat     |
+--!             | player      | report   |
 --!             +-------------+----------+
 --!
 --!         Notes: - Leaderboard observes matches so that player may update
@@ -57,6 +72,8 @@ enum NotificationType {CHAT, REQUEST, REMINDER}
 --!                  play is made and generate a notification
 --!                - Player observes chat so chat may notify a player when a
 --!                  new message is received
+--!                - Player observes report so report may notify a player when
+--!                  it's status changes
 --!
 --!         Singleton Pattern
 --!             1 to one associations of the class with itself
@@ -72,6 +89,7 @@ end -- Identifiable
 
 abstract class Observer
 operations
+    -- This is the method called by the observable to update the Observer
     --update(o: Observable)
 end -- Observer Class
 
@@ -80,15 +98,85 @@ end -- Observable Class
 
 class DateTime
 attributes
-    -- Initialized to this system's eposh time 1900-01-01 00:00:00
-    day: Integer init: 1
-    month: Integer init: 1
-    year: Integer init: 1900
-    hour: Integer init: 0
-    minute: Integer init: 0
-    second: Integer init: 0
+    TO_SEC: Tuple(y: Integer, d: Integer, hr: Integer, min: Integer) init:
+        Tuple{y = 31557600, d = 86400, hr = 3600, min = 60}
+    -- 31557600 is the number of seconds in a year
+    -- 86400 is the number of seconds in a day
+    -- 3600 is the number of seconds in an hour
+    -- 60 is the number of seconds in a minute
+
+    EPOSH: Tuple(
+        y: Integer, m: Integer, d: Integer,
+        hr: Integer, min: Integer, sec: Integer
+    ) init: Tuple{y = 2000, m = 1, d = 1, hr = 0, min = 0, sec = 0}
+
+    -- Initialized to this system's eposh time 2000-01-01 00:00:00
+    day: Integer init: EPOSH.d
+    month: Integer init: EPOSH.m
+    year: Integer init: EPOSH.y
+    hour: Integer init: EPOSH.hr
+    minute: Integer init: EPOSH.min
+    second: Integer init: EPOSH.sec
+    secondsSinceEposh: Integer derived:
+        toSecondsSinceEposh(year, month, day, hour, minute, second)
 operations
-    initialise(d: Integer, m: Integer, y: Integer,
+    -- Takes a duration in seconds and it into years, months, days
+    -- hours, minutes and seconds
+    makeHumanReadable(sec: Integer): Tuple(
+    y: Integer, m: Integer, d: Integer,
+    hr: Integer, min: Integer, sec: Integer) =
+        let
+            years = EPOSH.y + (sec div TO_SEC.y),
+            leapDayCorrection = (years div 400) - (years div 100),
+            remDays = sec.mod(TO_SEC.y) div TO_SEC.d + leapDayCorrection,
+            daysOfEachMonth = if isLeapYear(years) then
+                    Sequence{31, 29, 31, 30, 31, 30, 31, 31, 30, 31, 30, 31}
+                else
+                    Sequence{31, 28, 31, 30, 31, 30, 31, 31, 30, 31, 30, 31}
+                endif,
+            months = 1 + Sequence{1..12}->iterate(m2; ans: Integer = 0 |
+                if (daysOfEachMonth->subSequence(1, m2)->sum() < remDays) then
+                    ans + 1
+                else
+                    ans
+                endif),
+            days = remDays - daysOfEachMonth
+                ->subSequence(1, months - 1)->sum(),
+            hours = sec.mod(TO_SEC.y).mod(TO_SEC.d) div TO_SEC.hr,
+            minutes = sec.mod(TO_SEC.y).mod(TO_SEC.d)
+                .mod(TO_SEC.hr) div TO_SEC.min,
+            seconds = sec.mod(TO_SEC.y).mod(TO_SEC.d)
+                .mod(TO_SEC.hr).mod(TO_SEC.min)
+        in Tuple{y = years, m = months, d = days,
+            hr = hours, min = minutes, sec = seconds}
+
+    pre argIsValid: sec > 0
+    post resultIsValid: isValid(result.y, result.m, result.d,
+        result.hr, result.min, result.sec)
+
+    toSecondsSinceEposh(y: Integer, m: Integer, d: Integer,
+    hr: Integer, min: Integer, sec: Integer): Integer =
+        let
+            years = y - EPOSH.y,
+            leapDayCorrection = (years div 400) - (years div 100),
+            daysOfEachMonth = if isLeapYear(y) then
+                    Sequence{31, 29, 31, 30, 31, 30, 31, 31, 30, 31, 30, 31}
+                else
+                    Sequence{31, 28, 31, 30, 31, 30, 31, 31, 30, 31, 30, 31}
+                endif,
+            days = d + Sequence{1..(m - 1)}->iterate(prevM; ans: Integer = 0 |
+                ans + daysOfEachMonth->at(prevM)) + leapDayCorrection - 1
+        in (years * TO_SEC.y) + (days * TO_SEC.d) +
+            (hr * TO_SEC.hr) + (min * TO_SEC.min) + sec
+
+    pre argsAreValid: isValid(y, m, d, hr, min, sec)
+    post resultIsValid:
+        let
+            date = makeHumanReadable(result)
+        in result >= 0 and y = date.y and m = date.m and d = date.d and
+            hr = date.hr and min = date.min and sec = date.sec
+
+    initialise(y: Integer, m: Integer, d: Integer,
     hr: Integer, min: Integer, sec: Integer)
     begin
         self.year := y;
@@ -99,51 +187,54 @@ operations
         self.second := sec;
     end
 
-    pre parametersHaveValidValues: isValid(d, m, y, hr, min, sec)
+    pre parametersHaveValidValues: isValid(y, m, d, hr, min, sec)
     post attributesCorrectlyUpdated:
         day = d and month = m and year = y and
         hour = hr and minute = min and second = sec
 
     ---------------------------------Accessors--------------------------------
 
-    getDay(): Integer = day
-    getMonth(): Integer = month
     getYear(): Integer = year
+    getMonth(): Integer = month
+    getDay(): Integer = day
 
     getHour(): Integer = hour
     getMinute(): Integer = minute
     getSecond(): Integer = second
 
+    getNow(): DateTime = now
+    post resultNotNull: result <> null
+
     ---------------------------------Mutators---------------------------------
 
-    setDay(d: Integer)
-    begin self.day := d; end
-    pre newDateIsValid: isValid(d, month, year, hour, minute, second)
-    post dayCorrectlyUpdated: day = d
-
-    setMonth(m: Integer)
-    begin self.month := m; end
-    pre newDateIsValid: isValid(day, m, year, hour, minute, second)
-    post monthCorrectlyUpdated: month = m
-
     setYear(y: Integer)
-    begin self.year := y; end
-    pre newDateIsValid: isValid(day, month, y, hour, minute, second)
+    begin self.initialise(y, self.month, self.day,
+        self.hour, self.minute, self.second); end
     post yearCorrectlyUpdated: year = y
 
+    setMonth(m: Integer)
+    begin self.initialise(self.year, m, self.day,
+        self.hour, self.minute, self.second); end
+    post monthCorrectlyUpdated: month = m
+
+    setDay(d: Integer)
+    begin self.initialise(self.year, self.month, d,
+        self.hour, self.minute, self.second); end
+    post dayCorrectlyUpdated: day = d
+
     setHour(h: Integer)
-    begin self.hour := h; end
-    pre newDateIsValid: isValid(day, month, year, h, minute, second)
+    begin self.initialise(self.year, self.month, self.day,
+        h, self.minute, self.second); end
     post mutationSuccess: hour = h
 
     setMinute(m: Integer)
-    begin self.minute := m; end
-    pre newDateIsValid: isValid(day, month, year, hour, m, second)
+    begin self.initialise(self.year, self.month, self.day,
+        self.hour, m, self.second); end
     post mutationSuccess: minute = m
 
     setSecond(s: Integer)
-    begin self.second := s; end
-    pre newDateIsValid: isValid(day, month, year, hour, minute, s)
+    begin self.initialise(self.year, self.month, self.day,
+        self.hour, self.minute, s); end
     post mutationSuccess: second = s
 
     --------------------------------Predicates--------------------------------
@@ -151,59 +242,39 @@ operations
     -- returns true if all the attributes are not null, false otherwise
     isInitialised(): Boolean =
         day <> null and month <> null and year <> null and
-        hour <> null and minute <> null and second <> null
+        hour <> null and minute <> null and second <> null and
+        secondsSinceEposh >= 0
     post returnValueIsAccurate:
-        result = Set{day <> null, month <> null, year <> null}
+        result = Set{day <> null, month <> null, year <> null,
+            hour <> null, minute <> null, second <> null,
+            secondsSinceEposh >= 0}
             ->forAll(t | t = true)
 
     -- returns true if self is before d, false otherwise
-    before(d: DateTime): Boolean = (year < d.year) or
-        (year = d.year and month < d.month) or
-        (year = d.year and month = d.month and day < d.day) or
-        (year = d.year and month = d.month and day = d.day and
-            hour < d.hour) or
-        (year = d.year and month = d.month and day = d.day and
-            hour = d.hour and minute < d.minute) or
-        (year = d.year and month = d.month and day = d.day and
-            hour = d.hour and minute = d.minute and second < d.second)
-    pre bothAreInitialised: isInitialised() and d.isInitialised()
-    pre bothAreValid: isSelfValid() and d.isSelfValid()
-    post returnValueIsAccurate: result =
-        ((year < d.year) or
-        (year = d.year and month < d.month) or
-        (year = d.year and month = d.month and day < d.day) or
-        (year = d.year and month = d.month and day = d.day and
-            hour < d.hour) or
-        (year = d.year and month = d.month and day = d.day and
-            hour = d.hour and minute < d.minute) or
-        (year = d.year and month = d.month and day = d.day and
-            hour = d.hour and minute = d.minute and second < d.second)) -- = true
-
-    -- returns true if self has the same values as d, false otherwise
-    equals(d: DateTime): Boolean =
-        day = d.day and month = d.month and year = d.year and
-        hour = d.hour and minute = d.minute and second = d.second
-    pre bothAreInitialised: isInitialised() and d.isInitialised()
-    pre bothAreValid: isSelfValid() and d.isSelfValid()
-    post returnValueConditions:
-        result = Set{day = d.day, month = d.month, year = d.year}
-            ->forAll(t | t = true)
-
-    -- returns true if self is after d, false otherwise
-    after(d: DateTime): Boolean = (not equals(d)) and (not before(d))
+    before(d: DateTime): Boolean = secondsSinceEposh < d.secondsSinceEposh
     pre bothAreInitialised: isInitialised() and d.isInitialised()
     pre bothAreValid: isSelfValid() and d.isSelfValid()
     post returnValueIsAccurate:
-        result = Set{not equals(d), not before(d)}->forAll(t | t = true)
+        result = (secondsSinceEposh < d.secondsSinceEposh) -- = true
+
+    -- returns true if self has the same values as d, false otherwise
+    equals(d: DateTime): Boolean = secondsSinceEposh = d.secondsSinceEposh
+    pre bothAreInitialised: isInitialised() and d.isInitialised()
+    pre bothAreValid: isSelfValid() and d.isSelfValid()
+    post returnValueConditions:
+        result = (secondsSinceEposh < d.secondsSinceEposh)
+
+    -- returns true if self is after d, false otherwise
+    after(d: DateTime): Boolean = secondsSinceEposh > d.secondsSinceEposh
+    pre bothAreInitialised: isInitialised() and d.isInitialised()
+    pre bothAreValid: isSelfValid() and d.isSelfValid()
+    post returnValueIsAccurate:
+        result = (secondsSinceEposh > d.secondsSinceEposh)
 
     -- returns true if y is a leap year, false otherwise
-    isLeapYear(y: Integer): Boolean =
-        if (y.mod(400) = 0 or (y.mod(100) > 0 and y.mod(4) = 0)) then
-                true
-            else
-                false
-            endif
-    pre yearIsValid: y <> null and y > 1900
+    isLeapYear(y: Integer): Boolean = y.mod(400) = 0 or
+        (y.mod(100) > 0 and y.mod(4) = 0)
+    pre yearIsValid: y <> null and y >= 2000
     post returnValueIsAccurate: result = (y.mod(400) = 0 or
         (y.mod(100) > 0 and y.mod(4) = 0)) -- = true
 
@@ -227,11 +298,11 @@ operations
     pre paramaterNotNull: v <> null
     post returnValueIsAccurate: result = (v >= 1 and v <= 12)
 
-    yearValid(v: Integer): Boolean = v > 1900
+    yearValid(v: Integer): Boolean = v >= 2000
     pre paramaterNotNull: v <> null
-    post returnValueIsAccurate: result = v > 1900
+    post returnValueIsAccurate: result = (v >= 2000)
 
-    dayAndMonthValid(d: Integer, m: Integer): Boolean =
+    dayAndMonthValid(m: Integer, d: Integer): Boolean =
         (Set{4, 6, 9, 11}->includes(m) implies d <= 30) and
         (Set{1, 3, 5, 7, 8, 10, 12}->includes(m) implies d <= 31)
     pre dayIsValid: dayValid(d)
@@ -240,7 +311,7 @@ operations
         ((Set{4, 6, 9, 11}->includes(m) implies d < 31) and
         (Set{1, 3, 5, 7, 8, 10, 12}->includes(m) implies d < 32))
 
-    febValid(d: Integer, y: Integer): Boolean =
+    febValid(y: Integer, d: Integer): Boolean =
         (isLeapYear(y) implies d <= 29) and
         (not isLeapYear(y) implies d <= 28)
     pre dayIsValid: dayValid(d)
@@ -249,13 +320,26 @@ operations
         ((isLeapYear(y) implies d <= 29) and
         (not isLeapYear(y) implies d <= 28))
 
-    isValid(d: Integer, m: Integer, y: Integer,
+    isValid(y: Integer, m: Integer, d: Integer,
     hr: Integer, min: Integer, sec: Integer): Boolean =
         dayValid(d) and monthValid(m) and yearValid(y) and
-        dayAndMonthValid(d, m) and (m = 2 implies febValid(d, y)) and
+        dayAndMonthValid(m, d) and (m = 2 implies febValid(y, d)) and
         hourValid(hr) and minuteValid(min) and secondValid(sec)
 
-    isSelfValid(): Boolean = isValid(day, month, year, hour, minute, second)
+    isSelfValid(): Boolean = isValid(year, month, day, hour, minute, second)
+
+    --------------------------------Operations--------------------------------
+
+    difference(d: DateTime): Integer =
+        secondsSinceEposh - d.secondsSinceEposh
+    pre bothAreValid: isSelfValid() and d.isSelfValid()
+    post resultIsCorrect: result =
+        (secondsSinceEposh - d.secondsSinceEposh)
+
+    differenceInDays(d: DateTime): Real = (difference(d) / TO_SEC.d)
+    pre bothAreValid: isSelfValid() and d.isSelfValid()
+    post resultIsCorrect: result =
+        ((secondsSinceEposh - d.secondsSinceEposh) / TO_SEC.d)
 end -- DateTime Class
 
 class Period
@@ -327,8 +411,8 @@ operations
 
     -- Returns true if the current period starts before and ends after
     -- the period passed as an argument
-    containsDate(d: DateTime): Boolean = getStart().before(d) and
-        (getEnd() <> null implies getEnd().after(d))
+    containsDate(d: DateTime): Boolean = (not getStart().after(d)) and
+        (getEnd() <> null implies (not getEnd().before(d)))
     pre selfAndArgsAreValid: isSelfValid() and d.isSelfValid()
     post noMutations: interval = interval@pre and  d = d@pre
     post resultIsCorrect: result = (getStart().before(d) and
@@ -402,6 +486,36 @@ operations
     pre selfIsValid: isSelfValid()
     post mutationSuccess: getStart() = interval@pre->at(1) and getEnd() = s
     post selfStillValid: isValid(getStart(), getEnd())
+
+    --------------------------------Operations--------------------------------
+
+    duration(): Integer =
+        if getEnd() <> null then
+            getEnd().difference(getStart())
+        else
+            getStart().now.difference(getStart())
+        endif
+    pre selfIsValid: isSelfValid()
+    post resultIsCorrect: result =
+        if getEnd() <> null then
+            getEnd().difference(getStart())
+        else
+            getStart().now.difference(getStart())
+        endif
+
+    durationInDays(): Real =
+        if getEnd() <> null then
+            getEnd().differenceInDays(getStart())
+        else
+            getStart().getNow().differenceInDays(getStart())
+        endif
+    pre selfIsValid: isSelfValid()
+    post resultIsCorrect: result =
+        if getEnd() <> null then
+            getEnd().differenceInDays(getStart())
+        else
+            getStart().getNow().differenceInDays(getStart())
+        endif
 end -- Period Class
 
 class Player < Identifiable, Observer
@@ -409,11 +523,94 @@ attributes
     username: String
     email: String
     dob: DateTime
-    score: Integer -- derived
+    score: Integer init: 500
     status: PlayerStatus
     state: ProfileState init: #PRIVATE
 operations
-    -- update, openChat, closeChat, sendMsg, joinGame, sendReq, addressReq
+    --getters (we'll have to restrict what may be obtained in the method I
+    -- think)
+
+    -- Generates notifications based on what event occured
+    --update(o: Observable)
+
+    -- Updates the player's score if a ranked match was completed or abandoned
+    --updateHelperMatch(o: Match)
+    -- for the body we could generate a decimal value based on the difference
+    -- in the players' ranks, the time it took to end the game, average points
+    -- per play, average time per play
+    -- we could cap the amount your score increases to +/- 25 points
+
+    -- update helper function for chat events
+    --updateHelperChat(o: Chat)
+
+    -- update helper function for request events
+    --updateHelperRequest(o: Request)
+
+    -- update helper function for report events
+    --updateHelperReport(o: Report)
+
+    -- update helper function for matchRequest events
+    --updateHelperMatchReq(o: MatchRequest)
+
+    -- Sends a message in a given chat
+    --sendMsg(c: Chat, msg: String)
+
+    -- Adds the player to the match queue
+    joinQueue(q: Queue)
+    begin
+        new Join() between (q, self);
+    end
+
+    pre argIsValid: q <> null
+    pre playerIsOnline: status = #ONLINE
+    post joinSuccessful: ((queues->size() - queues@pre->size()) = 1) and
+        (queues->size() = 1)
+
+    -- Removes the player from the match queue
+    leaveQueue()
+    begin
+        destroy self.queues->any(true);
+    end
+
+    pre playerIsInQueue: queues->size() = 1
+    pre playerIsOnline: status = #ONLINE
+    post leaveSuccessful: ((queues->size() - queues@pre->size()) = -1) and
+        (queues->size() = 0)
+
+    -- Sends a request to the specified player
+    --sendReq(p: Player, t: RequestType)
+
+    -- Updates the status of a received request
+    --addressReq(req: Request, action: RequestStatus)
+
+    -- Adds a player to the player's blocked list
+    -- blockPlayer(p: Player)
+
+    -- Creates a bug report
+    --reportBug(msg: String)
+
+    -- Creates a report against the specified player
+    --reportBug(p: Player)
+
+    -- Opens the specified chat (Should this take a player or the chat?)
+    --openChat(c: Chat)
+
+    -- Closes the specified chat
+    --closeChat(c: Chat)
+
+    -- Opens the specified match
+    --openMatch(m: Match)
+
+    -- Closes the specified match
+    --closeMatch(m: Match)
+
+    -- Executes actions that should occur once the player opens the app or
+    -- logs in
+    --openApp()
+
+    -- Executes actions that should occur once the player closes the app
+    -- or logs out
+    --closeApp()
 end -- Player Class
 
 class Message < Identifiable
@@ -422,15 +619,44 @@ attributes
     message: String
     sentDate: DateTime
     seenDate: DateTime
+operations
+    --getters
+
+    -- Sets the message status to SEEN
+    --view()
 end -- Message Class
 
 class Notification
 attributes
-    type: NotificationType
-    deliverytime: Time
+        deliverytime: DateTime
+    dismissed: Boolean init: false
+operations
+    -- Matks the message as dismissed
+    -- dismiss()
+
+    -- Opens the app to the relevant view then dismisses the notification
+    --gotoAndDismiss()
+
+    -- gotoAndDismiss helper for chat event notifications
+    --gotoChatHelper
+
+    -- gotoAndDismiss helper for match event notifications
+    --gotoMatchHelper
+
+    -- gotoAndDismiss helper for request event notifications
+    --gotoRequestHelper
+
+    -- gotoAndDismiss helper for report event notifications
+    --gotoReportHelper
 end
 
 class Chat < Observable
+operations
+    -- Creates a new message
+    --createMessage(msg: String)
+
+    -- Marks all the newest received messages as seen
+    --view(p: Player)
 end -- Chat Class
 
 associationclass ChatState
@@ -440,6 +666,12 @@ between
 attributes
     status: ChatStatus init: #CLOSED
     lastOpened: DateTime
+operations
+    -- Sets the chat state to open
+    --setOpen() -- view all unseen messages and set ChatStatus to OPEN
+
+    -- Sets the chat state to closed
+    --setClosed() -- set lastOpened date and set ChatStatus to CLOSED
 end -- End ChatState Association Class
 
 class Request < Identifiable, Observable
@@ -448,12 +680,24 @@ attributes
     sentDate: DateTime
     activePeriod: Period
     type: RequestType
+operations
+    -- Mark the request as accepted
+    --accept()
+    -- Mark the request as rejected
+    --reject()
+    -- Mark the request as recinded
+    --recind()
+    -- Mark the request as lost
+    --block()
 end -- Request Class
 
 class MatchRequest < Request
 attributes
     matchType: MatchType
     timed: Boolean
+operations
+    -- Mark the request as accepted and creates a new match
+    --accept()
 end -- MatchRequest Class
 
 associationclass Block
@@ -463,26 +707,95 @@ between
 attributes
     date: DateTime
     status: BlockStatus init: #BLOCKED
+operations
+    -- Mark a player as blocked
+    --block()
+
+    -- Mark a player as unblocked
+    --unblock()
 end -- Block Association Class
 
+class Report < Observable
+attributes
+    type: ReportType
+    status: ReportStatus init: #UNRESOLVED
+operations
+    --getters
+
+    -- Mark the report as under review
+    --review()
+
+    -- Mark the report as resolved
+    --resolve()
+end -- Report Class
+
 -------------------------------------Game-------------------------------------
+
+class Queue
+operations
+    --
+end -- Queue Class
+
+associationclass Join
+between
+    Queue[*] role queues
+    Player[*] role players
+attributes
+    matchType: MatchType
+    timed: Boolean
+    joinedAt: DateTime
+operations
+    --
+end -- Join Association Class
 
 associationclass Rack
 between
     Player[2] role players
     Match[*] role matchHistory ordered
+operations
+    -- Makes a play
+    --play(tileSeq: OrderedSet(Letters),
+    --sRow: Integer, sCol: Integer, eRow: Integer, eCol: Integer)
+
+    -- Passes a turn
+    --pass()
 end -- Rack Association Class
 
 class Play < Identifiable, Observable
 attributes
     type: PlayType
-    startRow: Integer
-    startCol: Integer
-    endRow: Integer
-    endCol: Integer
-    score: Integer --/score: Integer
-    time: Integer -- Time in seconds between match start and this play
-    bonusApplied: Boolean
+    -- The main word is the word in the same row/column where the tiles were
+    -- placed. The main word does not have to start where the first tile
+    -- was placed
+    startRow: Integer -- row of the first letter of the main word
+    startCol: Integer -- column of the first letter of the main word
+    direction: PlayDirection
+    score: Integer derived = calcScore()
+    time: DateTime
+    multiplier: Real derived = calcMultiplier()
+operations
+    -- Calculates the points accumulated by the placement of the tiles on the
+    -- board
+    calcScore(): Integer =
+        let
+            activeTiles = rack.tiles->union(match.board.slots.tile)->asSet(),
+            flatScore = words->iterate(w; ans:Integer = 0 |
+                    ans + w.letters->iterate(l; ws:Integer = 0 |
+                        ws + activeTiles
+                            ->any(t | t.letter.letter = l.letter).points
+                    )
+                )
+        in (flatScore * multiplier).floor
+    pre isAPlay: type = #PLAY
+
+    calcMultiplier(): Real =
+        if words.category->excluding(#NONE)
+        ->includes(match.category) then
+            1.5
+        else
+            1
+        endif
+    pre isAPlay: type = #PLAY
 end -- Play Class
 
 class Board
@@ -490,47 +803,95 @@ end -- Board Class
 
 class Slot
 attributes
-    row: Integer
-    column: Integer
+    filledAt: DateTime
+operations
+    --getters and setters
+    getTile(): Tile = tile
+    getTileString(): String = getTile().getLetterString()
+
+    isEmpty(): Boolean = tile->isEmpty()
 end -- Slot Class
 
 class Tile
 attributes
     points: Integer
+operations
+    getLetter(): Letter = letter
+    getLetterString(): String = getLetter().getLetter()
+    getPoints(): Integer = points
 end -- Tile Class
 
 class Letter
 attributes
     letter: String
+operations
+    getLetter(): String = letter
+    equals(l: Letter): Boolean = (getLetter() = l.getLetter())
+    pre argIsValid: l <> null
 end -- Letter Class
 
 class LetterBag
+operations
+    -- Randomly picks a tile from the bag
+    --remove
 end -- LetterBag Class
 
 class Word
 attributes
     String: Word
-    category:  Category
+    category: Category init: #NONE
+operations
+    -- Returns a String that represents the word
+    getWord(): String = letters->iterate(l; ans: String = '' |
+        ans + l.getLetter())
+
+    equals(ws: String): Boolean = getWord().equalsIgnoreCase(ws)
+    pre argIsValid: ws <> null
+
+    --protected setters
 end -- Word Class
 
 class Dictionary
+operations
+    -- Searches for the word that matches the arguement passed and returns it
+    -- returns null otherwise
+    lookup(ws: String): Word = words->any(w | w.equals(ws))
+    pre argIsValid: ws <> null
+
+    --protected setters
 end -- Dictionary Class
 
 class Match < Identifiable, Observer, Observable
 attributes
     type: MatchType
     timed: Boolean
-    time: Integer -- Elapsed seconds
-    date: DateTime
+    duration: Period
     category: Category
     status: MatchStatus init: #INPROGRESS
+    score: Integer derived = playHistory->iterate(p; ans: Integer = 0 |
+                                if playHistory->indexOf(p).mod(2) = 1 then
+                                    ans + p.score
+                                else
+                                    ans - p.score
+                                endif)
 operations
-    -- update
+    --getters
+    --update(o: Observable)
+
+    -- Checks if the player is currently has the match open and creates a
+    -- notification if they don't or signals to the players that the match
+    -- is complete
+    --updateHelperPlay(o: Play)
 end -- Match Class
 
 class Leaderboard < Observer
 operations
-    -- update
+    --getters
+
+    --update(o: Observable)
+
+    -- Updates the players' ranks once a ranked match is complete
+    --updateHelperMatch(o: Match)
 end -- Leaderboard Class
 
 associationclass Rank
@@ -539,6 +900,8 @@ between
     Player[*] role players ordered
 attributes
     placement: Integer
+operations
+    getRank(): Integer = placement
 end -- Rank Association Class
 
 ---------------------------------Associations---------------------------------
@@ -546,17 +909,17 @@ end -- Rank Association Class
 association Watches between
     Observer[*]
     Observable[*]
-end -- watches Association
+end -- Watches Association
 
-association CurrentDate between
+association CurrentTime between
     DateTime[*]
     DateTime[0..1] role now
-end -- currentDate Association
+end -- CurrentTime Association
 
 association PeriodInterval between
     Period[*]
     DateTime[0..2] role interval ordered
-end -- interval Association
+end -- PeriodInterval Association
 
 association OnlyLboard between
     Leaderboard[1] role lboard1
@@ -569,6 +932,16 @@ association OnlyDict between
 end -- OnlyDict Association
 
 
+
+association Signal between
+    Notification[*] role notifs
+    Observable[1] role event
+end -- Signal Association
+
+association Notify between
+    Notification[*] role notifs
+    Player[1]
+end -- Signals Association
 
 composition PlayerChat between
     Chat[1] role chat
@@ -600,6 +973,15 @@ association RecievedMessage between
     Message[*] role rcvdMsgs
 end -- End RecievedMessage Association
 
+association Claim between
+    Player[1]
+    Report[*] role claims
+end -- Claim Association
+
+association Reported between
+    Report[*] role reports
+    Player[0..1] role reported --directed
+end -- Reported Association
 
 
 association MatchGameBoard between
@@ -608,12 +990,12 @@ association MatchGameBoard between
 end -- End MatchGameBoard Association
 
 composition Grid between
-    Board[1]
-    Slot[*] role slots
+    Board[1] qualifier (row: Integer, col: Integer)
+    Slot[1] role slots
 end -- End Grid Composition
 
 aggregation Fill between
-    Slot[1]
+    Slot[0..1]
     Tile[0..1]
 end -- End Fill Aggregation
 
@@ -623,7 +1005,7 @@ association LetterOptions between
 end -- End LetterOptions Association
 
 aggregation Stock between
-    LetterBag[1]
+    LetterBag[0..1]
     Tile[*] role tiles
 end -- End Stock Aggregation
 
@@ -652,25 +1034,25 @@ association Plays between
     Play[*] role playHistory ordered
 end -- End Plays Association
 
-aggregation Holds between
-    Rack[1]
+aggregation Hold between
+    Rack[0..1]
     Tile[0..9] role tiles
-end -- End Holds Aggregation
+end -- End Hold Aggregation
 
 association Played between
     Rack[1]
     Play[*] role plays
 end -- End Played Association
 
-association Uses between
-    Play[1]
+association Use between
+    Play[0..1]
     Tile[0..9] role tiles ordered
-end -- End Uses Association
+end -- End Use Association
 
-association Marked between
+association Mark between
     Tile[*] role tiles
     Letter[1]
-end -- End Marked Association
+end -- End Mark Association
 
 ----------------------------------Constraints---------------------------------
 
@@ -693,7 +1075,7 @@ context DateTime
     -- #DOUBLE-CHECK
     inv onlyOneCurrentTime:
         let
-            now = DateTime.allInstances.now->asSet()
+            now = DateTime.allInstances.now->asSet()->excluding(null)
         in (DateTime.allInstances->size() > 1 implies now->size() = 1) and
             now->forAll(t | t.oclIsTypeOf(DateTime))
 -- End DateTime Constraints
@@ -714,7 +1096,10 @@ context Player
             i = matchHistory->indexOf(m),
             prevMatches = matchHistory->subOrderedSet(1, i - 1)
         in matchHistory->first() <> m implies
-            prevMatches->forAll(prevM | prevM.date.before(m.date)))
+            prevMatches->forAll(prevM |
+                prevM.duration.getStart().before(m.duration.getStart())
+            )
+    )
 
     -- Blocked players can't be your friends
     inv notFriendAndBlocked:
@@ -744,7 +1129,9 @@ context Player
     inv noMatchesWithBlockedPlayers:
         block[player]->select(b | b.status = #BLOCKED)->forAll(b |
             not matchHistory->exists(m |
-                m.players->includes(b.blocked) and m.date.after(b.date)))
+                m.players->includes(b.blocked) and
+                m.duration.getStart().after(b.date))
+        )
 
     -- There must not be any pending friend or message requests between a
     -- given pair of players if there exists an accepted request of the same
@@ -814,17 +1201,22 @@ context Player
                 req.activePeriod.containsDate(m.sentDate)
         ))
 
-    -- players in match must have status in game
-    inv playerStatusConsistent:
-        if matchHistory->any(m | m.status = #INPROGRESS) <> null then
-            status = #PLAYING
-        else
-            status <> #PLAYING
-        endif
+    -- Enforcing this invariant would go against allowing players to go
+    -- offline during a match.
+    ---- players in match must have status in game
+    --inv playerStatusConsistent:
+    --    if matchHistory->any(m | m.status = #INPROGRESS) <> null then
+    --        status = #PLAYING
+    --    else
+    --        status <> #PLAYING
+    --    endif
 
     -- Can't play more than one match at a time
     inv onlyPlayingOneOrNoMatches:
         matchHistory->select(m | m.status = #INPROGRESS)->size() <= 1
+
+    -- Players may only join up to one queue at a time
+    inv onlyInOneQueue: queues->size() <= 1
 -- End Player Constraints
 
 context Chat
@@ -843,22 +1235,23 @@ context Chat
             previousMsgs = messages->subOrderedSet(1, i - 1)
         in messages->first() <> m implies
             previousMsgs->forAll(prevM | prevM.sentDate.before(m.sentDate)))
-
-    -- Only the newest messages from a single player in a chat may be unseen
-    inv onlyNewestMsgsMayBeUnseen:
-        let
-            unseen = messages->select(m | m.status = #UNSEEN),
-            sender = unseen.msgSender->asSet(),
-            lastMsg = unseen->last()
-        in unseen->size() > 0 implies (sender->size() = 1 and
-            messages->forAll(m | unseen->excludes(m) and m.status = #SEEN))
 -- End Chat Constraints
 
 context ChatState
     -- All messages from the other player before lastOpened date must be seen
-    inv noUnseenMsgsBeforeLastOpened:
-        chatRooms.messages->forAll(m | (m.sentDate.before(lastOpened) and
-            m.msgSender <> participants) implies m.status = #SEEN)
+    inv onlyMsgsAfterLastOpenedUnseen:
+        chatRooms.messages->forAll(m |
+            participants->excludes(m.msgSender) implies (
+                (m.status = #UNSEEN and m.sentDate.after(lastOpened)) or
+                (m.status = #SEEN and (not m.seenDate.after(lastOpened)))
+            )
+        )
+
+    -- Can't send messages after closing the chat
+    inv noSentMsgsAfterChatClosed: status = #CLOSED implies
+        (not chatRooms.messages->exists(m |
+            participants->includes(m.msgSender) and
+            lastOpened.before(m.sentDate)))
 -- End ChatState Constraints
 
 context Message
@@ -914,315 +1307,253 @@ context MatchRequest
 
     -- Accepted match type must match requested match type
     inv matchDataMatchesMatchReqData: status = #ACCEPTED implies
-        (matchType = match.type and activePeriod.oclIsTypeOf(Period) and
-        timed = match.timed and activePeriod.getStart() = match.date)
+        (matchType = match.type and timed = match.timed and
+        activePeriod.getStart() = match.duration.getStart())
 -- End MatchRequest Constraints
 
+context Report
+    -- Only Player reports may be associated with more than one player
+    inv onlyPlayerReportsHave2Players:
+        if type = #PLAYER then
+            reported->size() = 1
+        else
+            reported->size() = 0
+        endif
+-- End Report Constraints
+
+
+context Join
+    -- Only unranked matches may be untimed
+    inv noUntimedRankedMatches: matchType = #RANKED implies timed
+-- End Join Constraints
+
+context Rack
+    -- No empty spaces unless there are no more tiles in the letterBag
+    inv noEmptySpaceUnlessLetterBagEmpty: tiles->size() = 9 or
+        (tiles->size() < 9 and matchHistory.board.letterBag.tiles->size() = 0)
+-- End Rack Constraints
+
 context Play
-    -- Plays can only go in one direction
-    inv oneDirection:
-        (startRow = endRow and (endCol - startCol) >= 0) or
-        (startCol = endCol and (endRow - startRow) >= 0)
+    -- Plays must have a direction
+    inv hasDirection: direction <> null
 
     -- Words must intersect or be spelt right alongside existing words
     -- or from the center of the board if all slots are empty
     inv intersectsWithAnotherWord:
-        (startRow = endRow and match.board.slots->select(s |
-            (Set{startRow - 1, startRow + 1}->includes(s.row) and
-                s.column >= startCol and s.column <= endCol)
-            or
-            (s.row = startRow and
-                Set{startCol - 1, endCol + 1}->includes(s.column))
-            ).tile->notEmpty()
-        ) or
-        (startCol = endCol and match.board.slots.select(s |
-            (Set{startCol - 1, startCol + 1}->includes(s.column) and
-                s.row >= startRow and s.column <= endRow)
-            or
-            (s.column = startCol and
-                Set{startRow - 1, endRow + 1}->includes(s.row))
-            ).tile->notEmpty()
+        (type = #PLAY and match.playHistory->first() <> self) implies
+            (let
+                grid = match.board,
+                r = startRow,
+                c = startCol,
+                tcnt = tiles->size()
+            in if direction = #HORIZONTAL then
+                    Sequence{1..tcnt}->iterate(o; ans: Boolean = false |
+                        ans or
+                        (grid.slots[r, c + o - 1].isEmpty() implies
+                            (not Set{grid.slots[r - 1, c + o - 1].tile,
+                            grid.slots[r + 1, c + o - 1].tile}->isEmpty()))
+                    ) or grid.slots[r, c + tcnt].tile <> null
+                else --if direction = #VERTICAL then
+                    Sequence{1..tcnt}->iterate(o; ans: Boolean = false |
+                        ans or
+                        (grid.slots[r + o - 1, c].isEmpty() implies
+                            (not Set{grid.slots[r + o - 1, c - 1].tile,
+                            grid.slots[r + o - 1, c + 1].tile}->isEmpty()))
+                    ) or grid.slots[r + tcnt, c].tile <> null
+                endif
+            )
+
+    -- Plays do not extend beyond the board
+    inv allTilesOnBoard: type = #PLAY implies
+        (let
+            grid = match.board
+        in if direction = #HORIZONTAL then
+                Sequence{startCol..15}->iterate(c; ans: Integer = 0 |
+                    if not grid.slots[startRow, c].isEmpty() and
+                    grid.slots[startRow, c].filledAt.equals(time) then
+                        ans + 1
+                    else ans endif
+                ) >= tiles->size()
+            else --if direction = #VERTICAL then
+                Sequence{startRow..15}->iterate(r; ans: Integer = 0 |
+                    if not grid.slots[r, startCol].isEmpty() and
+                    grid.slots[r, startCol].filledAt.equals(time) then
+                        ans + 1
+                    else ans endif
+                ) >= tiles->size()
+            endif
         )
 
     -- Passed plays or match quits cant have any tiles
-    inv passedPlayHasNoTiles: Set{#PASS, #QUIT}->includes(type) implies
+    inv passAndQuitHaveNoTiles: Set{#PASS, #QUIT}->includes(type) implies
         tiles->isEmpty()
 
-    -- Only valid words may be spelt
-    inv allWordsSpeltAreValidAndOnlySpeltWordsAreLinked:
-        if type = #PLAY then
-            if startRow = endRow then
-                let
-                    allSlots = match.board.slots,
+    -- Only valid words may be spelt and only words spelt may be linked to
+    -- a play
+    inv allWordsSpeltAreValidAndOnlySpeltWordsLinked: type = #PLAY implies
+        (let
+            grid = match.board,
 
-                    -- Get all slots in the play range and slots adjoining
-                    -- each end
-                    mainWordSlots = allSlots->select(s |
-                        s.row = startRow and s.column >= (startCol - 1) and
-                        s.column <= (endCol + 1))->sortedBy(s | s.column
-                    ),
-
-                    mainWord = mainWordSlots->iterate(s; word:String = ''|
-                        if s.tile->isEmpty() then
-                            if s.column >= startCol and s.column <= endCol then
-                                let
-                                    slotIndex = mainWordSlots->indexOf(s),
-                                    visitedSlots = mainWordSlots
-                                        ->subSequence(1, slotIndex),
-                                    nextLetter = visitedSlots
-                                        ->iterate(ws; ans:Integer = 0 |
-                                            if ws.tile->isEmpty() then
-                                                ans + 1
-                                            else ans endif
-                                        )
-                                in word.concat(tiles
-                                    ->at(nextLetter).letter.letter)
-                            else word endif
-                        else
-                            word.concat(s.tile.letter.letter)
-                        endif
-                    ),
-
-                    secondaryWordsStart = mainWordSlots->select(s |
-                        let
-                            adjAbove = allSlots->select(as |
-                                as.row = (s.row - 1) and as.column = s.column),
-                            adjBelow = allSlots->select(as |
-                                as.row = (s.row + 1) and as.column = s.column)
-                        in s.tile->isEmpty() and s.column >= startCol and
-                            s.column <= endCol and
-                            (adjAbove.tile->isEmpty() and
-                                adjBelow.tile->notEmpty()) or
-                            (adjBelow.tile->isEmpty() and
-                                adjAbove.tile->notEmpty())
-                    ),
-
-                    secondaryWords = secondaryWordsStart
-                        .iterate(s; wordLst:Set(String) = Set{} |
-                            let
-                                complete = false,
-
-                                above = allSlots->select(as |
-                                    as.row = (s.row - 1) and
-                                    as.column = s.column).tile->notEmpty(),
-
-                                wordSlots = allSlots->select(ws |
-                                    if above and ws.column = s.column then
-                                        ws.row >= s.row
-                                    else
-                                        ws.row <= s.row
-                                    endif
-                                )->sortedBy(ws | ws.row),
-
-                                wordSlots = if above then
-                                        wordSlots->reverse()
-                                    else wordSlots endif
-                            in wordLst->including(wordSlots
-                                ->iterate(ws; word:String = '' |
-                                    let
-                                        complete = ws.tile->isEmpty()
-                                    in
-                                        if not complete then
-                                            if not above then
-                                                word.concat(ws.tile.letter.letter)
-                                            else
-                                                ws.tile.letter.letter.concat(word)
-                                            endif
-                                        else word endif
-                                )
-                            )
-                        ),
-
-                    allSpeltWords = secondaryWords->including(mainWord),
-
-                    allValidWords = match.dictionary.words
-                        ->iterate(w; wSet:Set(String) = Set{} |
-                            wSet->including(w.letters
-                                ->iterate(l; wordStr:String = '' |
-                                    wordStr.concat(l.letter)
-                                )
-                            )
-                        ),
-
-                    allLinkedWords = words
-                        ->iterate(w; wSet:Set(String) = Set{} |
-                            wSet->including(w.letters
-                                ->iterate(l; wordStr:String = '' |
-                                    wordStr.concat(l.letter)
-                                )
-                            )
-                        )
-                in allValidWords->includesAll(allSpeltWords) and
-                    allSpeltWords->includesAll(allLinkedWords)
-            else false endif
-            or
-            if startCol = endCol then
-                let
-                    allSlots = match.board.slots,
-
-                    -- Get all slots in the play range and slots adjoining
-                    -- each end
-                    mainWordSlots = allSlots->select(s |
-                        s.column = startCol and s.row >= (startRow - 1) and
-                        s.row <= (endRow + 1))->sortedBy(s | s.row),
-
-                    mainWord = mainWordSlots->iterate(s; word:String = ''|
-                        if s.tile->isEmpty() then
-                            if s.row >= startRow and s.row <= endRow then
-                                let
-                                    slotIndex = mainWordSlots->indexOf(s),
-                                    visitedSlots = mainWordSlots
-                                        ->subSequence(1, slotIndex),
-                                    nextLetter = visitedSlots
-                                        ->iterate(ws; ans:Integer = 0 |
-                                            if ws.tile->isEmpty() then
-                                                ans + 1
-                                            else ans endif)
-                                in word.concat(tiles
-                                    ->at(nextLetter).letter.letter)
-                            else word endif
-                        else
-                            word.concat(s.tile.letter.letter)
-                        endif
-                    ),
-
-                    secondaryWordsStart = mainWordSlots->select(s |
-                        let
-                            adjAbove = allSlots->select(as |
-                                as.column = (s.column - 1) and as.row = s.row),
-                            adjBelow = allSlots->select(as |
-                                as.column = (s.column + 1) and as.row = s.row)
-                        in s.tile->isEmpty() and s.row >= startRow and
-                            s.row <= endRow and
-                            (adjAbove.tile->isEmpty() and
-                                adjBelow.tile->notEmpty()) or
-                            (adjBelow.tile->isEmpty() and
-                                adjAbove.tile->notEmpty())
-                    ),
-
-                    secondaryWords = secondaryWordsStart
-                        .iterate(s; wordLst:Set(String) = Set{} |
-                            let
-                                complete = false,
-
-                                above = allSlots->select(as |
-                                    as.column = (s.column - 1) and
-                                    as.row = s.row).tile->notEmpty(),
-
-                                wordSlots = allSlots->select(ws |
-                                    if above and ws.row = s.row then
-                                        ws.column >= s.column
-                                    else
-                                        ws.column <= s.column
-                                    endif
-                                )->sortedBy(ws | ws.column),
-
-                                wordSlots = if above then
-                                        wordSlots->reverse()
-                                    else wordSlots endif
-                            in wordLst->including(wordSlots
-                                ->iterate(ws; word:String = '' |
-                                    let
-                                        complete = ws.tile->isEmpty()
-                                    in
-                                        if not complete then
-                                            if not above then
-                                                word.concat(ws.tile.letter.letter)
-                                            else
-                                                ws.tile.letter.letter.concat(word)
-                                            endif
-                                        else word endif
-                                )
-                            )
-                        ),
-
-                    allSpeltWords = secondaryWords->including(mainWord),
-
-                    allValidWords = match.dictionary.words
-                        ->iterate(w; wSet:Set(String) = Set{} |
-                            wSet->including(w.letters
-                                ->iterate(l; wordStr:String = '' |
-                                    wordStr.concat(l.letter)
-                                )
-                            )
-                        ),
-
-                    allLinkedWords = words
-                        ->iterate(w; wSet:Set(String) = Set{} |
-                            wSet->including(w.letters
-                                ->iterate(l; wordStr:String = '' |
-                                    wordStr.concat(l.letter)
-                                )
-                            )
-                        )
-                in allValidWords->includesAll(allSpeltWords) and
-                    allSpeltWords->includesAll(allLinkedWords)
-            else false endif
-        else true endif
-
-    -- Verify that a bonus is to be applied
-    inv bonusCorrectlyFlagged:
-        words.category->includes(match.category) and bonusApplied
-
-    -- Score calculation verification
-    inv scoreCorrectlyCalculated:
-        let
-            multiplier = if bonusApplied then 1.5 else 1 endif,
-            tiles = rack.tiles->union(match.board.slots.tile)->asSet(),
-            flatScore = words->iterate(w; ans:Integer = 0 |
-                    ans + w.letters->iterate(l; ws:Integer = 0 |
-                        ws + tiles->any(t | t.letter.letter = l.letter).points
-                    )
+            -- All the slots that were filled by tiles provided by the rack
+            -- this turn
+            mainWordSlots = if direction = #HORIZONTAL then
+                Sequence{startCol..15}->iterate(
+                c; ans: Sequence(Integer) = Sequence{} |
+                    if (not grid.slots[startRow, c].isEmpty()) and
+                    grid.slots[startRow, c].filledAt.equals(time) then
+                        ans->append(c)
+                    else ans endif
                 )
-        in score = if bonusApplied then
-                (flatScore * multiplier)
-            else flatScore endif
+            else --if direction = #VERTICAL then
+                Sequence{startRow..15}->iterate(
+                r; ans: Sequence(Integer) = Sequence{} |
+                    if (not grid.slots[r, startCol].isEmpty()) and
+                    grid.slots[r, startCol].filledAt.equals(time) then
+                        ans->append(r)
+                    else ans endif
+                )
+            endif,
+
+            mainWord = if direction = #HORIZONTAL then
+                Sequence{startCol..15}->iterate(c; ans: String = '' |
+                    let
+                        s = grid.slots[startRow, c]
+                    in if not s.isEmpty() and
+                        ((startCol + ans.size()) = c) then
+                            ans + s.getTileString()
+                        else ans endif
+                )
+            else --if direction = #VERTICAL then
+                Sequence{startRow..15}->iterate(r; ans: String = '' |
+                    let
+                        s = grid.slots[r, startCol]
+                    in if not s.isEmpty() and
+                        ((startRow + ans.size()) = r) then
+                            ans + s.getTileString()
+                        else ans endif
+                )
+            endif,
+
+            secondaryWords = if direction = #HORIZONTAL then
+                mainWordSlots->iterate(c; ans: Set(String) = Set{} |
+                    let
+                        word = Sequence{1..(startRow-1)}->reverse()->iterate(
+                            r; top: String = '' |
+                                let
+                                    s = grid.slots[r, c]
+                                in if ((not s.isEmpty()) and
+                                    (not s.filledAt.after(time)) and
+                                    ((startRow - top.size()) = r)) then
+                                        s.getTileString() + top
+                                    else top endif
+                            ) +
+                            Sequence{startRow..15}->iterate(
+                            r; bot: String = '' |
+                                let
+                                    s = grid.slots[r, c]
+                                in if ((not s.isEmpty()) and
+                                    (not s.filledAt.after(time)) and
+                                    ((startRow + bot.size()) = r)) then
+                                        bot + s.getTileString()
+                                    else bot endif
+                            )
+                    in if word.size() > 1 then
+                            ans->including(word)
+                        else ans endif
+                )
+            else --if direction = #VERTICAL then
+                mainWordSlots->iterate(r; ans: Set(String) = Set{} |
+                    let
+                        word = Sequence{1..(startCol-1)}->reverse()->iterate(
+                            c; left: String = '' |
+                                let
+                                    s = grid.slots[r, c]
+                                in if ((not s.isEmpty()) and
+                                    (not s.filledAt.after(time)) and
+                                    ((startCol - left.size()) = c)) then
+                                        s.getTileString() + left
+                                    else left endif
+                            ) +
+                            Sequence{startCol..15}->iterate(
+                            c; right: String = '' |
+                                let
+                                    s = grid.slots[r, c]
+                                in if ((not s.isEmpty()) and
+                                    (not s.filledAt.after(time)) and
+                                    ((startCol + right.size()) = c)) then
+                                        right + s.getTileString()
+                                    else right endif
+                            )
+                    in if word.size() > 1 then
+                            ans->including(word)
+                        else ans endif
+                )
+            endif,
+
+            allSpeltWords = secondaryWords->including(mainWord),
+
+            allValidWords = match.dictionary.words
+                ->iterate(w; wSet:Set(String) = Set{} |
+                    wSet->including(w.getWord())
+                ),
+
+            allLinkedWords = words
+                ->iterate(w; wSet:Set(String) = Set{} |
+                    wSet->including(w.getWord())
+                )
+        in allValidWords->includesAll(allSpeltWords) and
+            allSpeltWords->includesAll(allLinkedWords)
+        )
 -- End Play Constraints
 
 context Board
     -- Must have 15 by 15 slots
-    inv boardSizeIsValid: slots->forAll(s |
-        s.row > 0 and s.row <= 15 and s.column > 0 and s.column <= 15)
+    inv boardGridIsValid:
+        Sequence{1..15}->iterate(r; ans: Set(Slot) = Set{} |
+            ans->union(Sequence{1..15}->iterate(c; ans: Set(Slot) = Set{} |
+                ans->including(slots[r, c])
+            ))
+        )->includesAll(slots)
 -- End Board Constraints
 
 context Tile
     -- Ensure Tiles have a valid point value
     inv validPoints: points > 0 and points <= 10
+
+    -- Ensure that tiles are held by only one object at a time
+    inv onlyInOnePlace:
+        Set{letterBag, rack, slot}->excluding(null)->size() = 1
 -- End Tile Constraints
+
+context Slot
+    -- Each slot must have a filledAt time if not empty
+    inv hadFilledAtTimeIfFilled: (isEmpty() and filledAt = null) or
+        ((not isEmpty()) and filledAt <> null)
+-- End Slot Constraints
 
 context Letter
     -- Ensure that the letter is valid
     inv validLetter: Set{'A', 'B', 'C', 'D', 'E', 'F', 'G', 'H', 'I', 'J',
         'K', 'L', 'M', 'N', 'O', 'P', 'Q', 'R', 'S', 'T', 'U', 'V', 'W',
-        'X', 'Y', 'Z'
-    }->includes(letter)
+        'X', 'Y', 'Z'}->includes(letter)
 -- End Letter Constraints
-
-context Word
-    -- No duplicate words
-    inv uniqueWords: Word.allInstances->forAll(w1, w2 |
-            if w1 <> w2 then
-                let
-                    word1 = w1.letters->iterate(l; word:String = '' |
-                        word.concat(l.letter)),
-                    word2 = w2.letters->iterate(l; word:String = '' |
-                        word.concat(l.letter))
-                in not word1.equalsIgnoreCase(word2)
-            else true endif
-        )
--- End Word Constraints
 
 context Dictionary
     -- Only one dictionary for the lifecycle of the system
     inv onlyOneDictionaryInstance: Dictionary.allInstances->size() <= 1
+
+    -- No duplicate words
+    inv uniqueWords: words->forAll(w1, w2 |
+            w1 <> w2 implies (not w1.equals(w2.getWord()))
+        )
 -- End Dictionary Constraints
 
 context Match
-    -- Each match must have a date
-    inv hasDate: date.oclIsKindOf(DateTime)
+    -- Each match must have a duration
+    inv hasDuration: duration.oclIsKindOf(Period)
 
     -- Only unranked matches may be untimed
-    inv noUntimedRankedMatches: (type = #RANKED) implies timed
+    inv noUntimedRankedMatches: type = #RANKED implies timed
 
     -- Plays must be ordered
     inv playsAreOrdered: playHistory->forAll(p |
@@ -1230,7 +1561,7 @@ context Match
             i = playHistory->indexOf(p),
             previousPlays = playHistory->subOrderedSet(1, i - 1)
         in playHistory->first() <> p implies
-            previousPlays->forAll(prevP | prevP.time < p.time))
+            previousPlays->forAll(prevP | prevP.time.before(p.time)))
 
     -- First word must be spelt in the center
     inv firstPlayStartsAtCentre:
@@ -1258,73 +1589,65 @@ context Match
             rackTiles = rack.tiles,
             boardTiles = board.slots.tile,
             allTiles = bagTiles->union(rackTiles->union(boardTiles))
+                ->excluding(null)
         in allTiles->forAll(t1, t2|
-            t1.letter.letter = t2.letter.letter implies t1.points = t2.points)
+            t1.getLetter().equals(t2.getLetter()) implies
+            t1.getPoints() = t2.getPoints())
 
     -- must be a fixed set of tiles in circulation for a given match
     inv fixedNumberOfLettersInMatch:
         let
-            bagLetters = board.letterBag.tiles.letter,
-            rackLetters = rack.tiles.letter,
-            boardLetters = board.slots.tile.letter,
-            allTiles = bagLetters->union(rackLetters->union(boardLetters)),
-            a = allTiles->iterate(char; cnt:Integer = 0 |
-                if char.letter.equalsIgnoreCase('A') then cnt + 1 else cnt endif),
-            b = allTiles->iterate(char; cnt:Integer = 0 |
-                if char.letter.equalsIgnoreCase('B') then cnt + 1 else cnt endif),
-            c = allTiles->iterate(char; cnt:Integer = 0 |
-                if char.letter.equalsIgnoreCase('C') then cnt + 1 else cnt endif),
-            d = allTiles->iterate(char; cnt:Integer = 0 |
-                if char.letter.equalsIgnoreCase('D') then cnt + 1 else cnt endif),
-            e = allTiles->iterate(char; cnt:Integer = 0 |
-                if char.letter.equalsIgnoreCase('E') then cnt + 1 else cnt endif),
-            f = allTiles->iterate(char; cnt:Integer = 0 |
-                if char.letter.equalsIgnoreCase('F') then cnt + 1 else cnt endif),
-            g = allTiles->iterate(char; cnt:Integer = 0 |
-                if char.letter.equalsIgnoreCase('G') then cnt + 1 else cnt endif),
-            h = allTiles->iterate(char; cnt:Integer = 0 |
-                if char.letter.equalsIgnoreCase('H') then cnt + 1 else cnt endif),
-            i = allTiles->iterate(char; cnt:Integer = 0 |
-                if char.letter.equalsIgnoreCase('I') then cnt + 1 else cnt endif),
-            j = allTiles->iterate(char; cnt:Integer = 0 |
-                if char.letter.equalsIgnoreCase('J') then cnt + 1 else cnt endif),
-            k = allTiles->iterate(char; cnt:Integer = 0 |
-                if char.letter.equalsIgnoreCase('K') then cnt + 1 else cnt endif),
-            l = allTiles->iterate(char; cnt:Integer = 0 |
-                if char.letter.equalsIgnoreCase('L') then cnt + 1 else cnt endif),
-            m = allTiles->iterate(char; cnt:Integer = 0 |
-                if char.letter.equalsIgnoreCase('M') then cnt + 1 else cnt endif),
-            n = allTiles->iterate(char; cnt:Integer = 0 |
-                if char.letter.equalsIgnoreCase('N') then cnt + 1 else cnt endif),
-            o = allTiles->iterate(char; cnt:Integer = 0 |
-                if char.letter.equalsIgnoreCase('O') then cnt + 1 else cnt endif),
-            p = allTiles->iterate(char; cnt:Integer = 0 |
-                if char.letter.equalsIgnoreCase('P') then cnt + 1 else cnt endif),
-            q = allTiles->iterate(char; cnt:Integer = 0 |
-                if char.letter.equalsIgnoreCase('Q') then cnt + 1 else cnt endif),
-            r = allTiles->iterate(char; cnt:Integer = 0 |
-                if char.letter.equalsIgnoreCase('R') then cnt + 1 else cnt endif),
-            s = allTiles->iterate(char; cnt:Integer = 0 |
-                if char.letter.equalsIgnoreCase('S') then cnt + 1 else cnt endif),
-            t = allTiles->iterate(char; cnt:Integer = 0 |
-                if char.letter.equalsIgnoreCase('T') then cnt + 1 else cnt endif),
-            u = allTiles->iterate(char; cnt:Integer = 0 |
-                if char.letter.equalsIgnoreCase('U') then cnt + 1 else cnt endif),
-            v = allTiles->iterate(char; cnt:Integer = 0 |
-                if char.letter.equalsIgnoreCase('V') then cnt + 1 else cnt endif),
-            w = allTiles->iterate(char; cnt:Integer = 0 |
-                if char.letter.equalsIgnoreCase('W') then cnt + 1 else cnt endif),
-            x = allTiles->iterate(char; cnt:Integer = 0 |
-                if char.letter.equalsIgnoreCase('X') then cnt + 1 else cnt endif),
-            y = allTiles->iterate(char; cnt:Integer = 0 |
-                if char.letter.equalsIgnoreCase('Y') then cnt + 1 else cnt endif),
-            z = allTiles->iterate(char; cnt:Integer = 0 |
-                if char.letter.equalsIgnoreCase('Z') then cnt + 1 else cnt endif)
-        in (a = 9 and b = 2 and c = 2 and d = 4 and e = 12 and f = 2 and
-            g = 3 and h = 2 and i = 9 and j = 1 and k = 1 and l = 4 and
-            m = 2 and n = 6 and o = 8 and p = 2 and q = 1 and r = 6 and
-            s = 4 and t = 6 and u = 4 and v = 2 and w = 2 and x = 1 and
-            y = 2 and z = 1)
+            bagLetters = board.letterBag.tiles.letter->asSet(),
+            rackLetters = rack.tiles.letter->asSet(),
+            boardLetters = board.slots.tile.letter->asSet(),
+            allTiles = bagLetters->union(rackLetters->union(boardLetters))
+                ->excluding(null),
+            count = allTiles->iterate(
+                char; cnt:Tuple(a: Integer, b: Integer, c: Integer,
+                d: Integer, e: Integer, f: Integer, g: Integer, h: Integer,
+                i: Integer, j: Integer, k: Integer, l: Integer, m: Integer,
+                n: Integer, o: Integer, p: Integer, q: Integer, r: Integer,
+                s: Integer, t: Integer, u: Integer, v: Integer, w: Integer,
+                x: Integer, y: Integer, z: Integer) =
+                Tuple{a = 0, b = 0, c = 0, d = 0, e = 0, f = 0, g = 0,
+                h = 0, i = 0, j = 0, k = 0, l = 0, m = 0, n = 0, o = 0,
+                p = 0, q = 0, r = 0, s = 0, t = 0, u = 0, v = 0, w = 0,
+                x = 0, y = 0, z = 0} |
+                    Tuple{
+                    a = if char.letter = 'A' then cnt.a + 1 else cnt.a endif,
+                    b = if char.letter = 'B' then cnt.b + 1 else cnt.b endif,
+                    c = if char.letter = 'C' then cnt.c + 1 else cnt.c endif,
+                    d = if char.letter = 'D' then cnt.d + 1 else cnt.d endif,
+                    e = if char.letter = 'E' then cnt.e + 1 else cnt.e endif,
+                    f = if char.letter = 'F' then cnt.f + 1 else cnt.f endif,
+                    g = if char.letter = 'G' then cnt.g + 1 else cnt.g endif,
+                    h = if char.letter = 'H' then cnt.h + 1 else cnt.h endif,
+                    i = if char.letter = 'I' then cnt.i + 1 else cnt.i endif,
+                    j = if char.letter = 'J' then cnt.j + 1 else cnt.j endif,
+                    k = if char.letter = 'K' then cnt.k + 1 else cnt.k endif,
+                    l = if char.letter = 'L' then cnt.l + 1 else cnt.l endif,
+                    m = if char.letter = 'M' then cnt.m + 1 else cnt.m endif,
+                    n = if char.letter = 'N' then cnt.n + 1 else cnt.n endif,
+                    o = if char.letter = 'O' then cnt.o + 1 else cnt.o endif,
+                    p = if char.letter = 'P' then cnt.p + 1 else cnt.p endif,
+                    q = if char.letter = 'Q' then cnt.q + 1 else cnt.q endif,
+                    r = if char.letter = 'R' then cnt.r + 1 else cnt.r endif,
+                    s = if char.letter = 'S' then cnt.s + 1 else cnt.s endif,
+                    t = if char.letter = 'T' then cnt.t + 1 else cnt.t endif,
+                    u = if char.letter = 'U' then cnt.u + 1 else cnt.u endif,
+                    v = if char.letter = 'V' then cnt.v + 1 else cnt.v endif,
+                    w = if char.letter = 'W' then cnt.w + 1 else cnt.w endif,
+                    x = if char.letter = 'X' then cnt.x + 1 else cnt.x endif,
+                    y = if char.letter = 'Y' then cnt.y + 1 else cnt.y endif,
+                    z = if char.letter = 'Z' then cnt.z + 1 else cnt.z endif}
+                )
+        in (count.a = 9 and count.b = 2 and count.c = 2 and count.d = 4 and
+            count.e = 12 and count.f = 2 and count.g = 3 and count.h = 2 and
+            count.i = 9 and count.j = 1 and count.k = 1 and count.l = 4 and
+            count.m = 2 and count.n = 6 and count.o = 8 and count.p = 2 and
+            count.q = 1 and count.r = 6 and count.s = 4 and count.t = 6 and
+            count.u = 4 and count.v = 2 and count.w = 2 and count.x = 1 and
+            count.y = 2 and count.z = 1)
 
     -- Players must be similar rank
     inv similarRank:
@@ -1334,21 +1657,31 @@ context Match
                 (p1.placement - p2.placement).abs() <= 200)
         )
 
-    -- Once a player quits the match must end
-    inv matchEndIfQuit:
-        (playHistory->select(p | p.type = #QUIT)->size() <= 1 implies
-            playHistory->last().type = #QUIT) and
-        playHistory->last().type = #QUIT implies status = #ABANDONED
-
     -- Once a match ends no additional plays can be made
-    inv noPlaysAfterMatchEnd:
-        status = #ABANDONED implies playHistory->last().type = #QUIT and
-        status = #COMPLETE implies playHistory->forAll(p | p.time < time)
+    inv allPlaysWithinMatchDuration: playHistory->forAll(p |
+        duration.containsDate(p.time))
 
-    -- Matches can't last longer than 5 min
-    inv matchEndTimeValid:
-        (timed and Set{#COMPLETE, #ABANDONED}->includes(status)) implies
-            (time > 0 and time < 300) -- 5 min
+    -- Ensures that the end date for a match corresponds with the final play
+    -- if the match is finished or that there is no end date if the match is
+    -- still going
+    inv matchEndValid:
+        let
+            lp = playHistory->last(),
+            dur = duration.duration()
+        in (Set{#COMPLETE, #ABANDONED}->excludes(status) and
+                duration.getEnd() = null) or
+            (duration.getEnd() = lp.time and
+                ((status = #ABANDONED and lp.type = #QUIT) or
+                (status = #COMPLETE and
+                    (score.abs() >= 100 or
+                    (timed and dur > 0 and dur < 300))) --5 min
+                )
+            )
+
+    -- Checks that no matches last longer than 30 days
+    inv noIndefiniteMatches: not Match.allInstances->exists(m |
+        (not m.timed) and (m.status = #INPROGRESS) and
+        (m.duration.durationInDays() > 30))
 -- End Match Constraints
 
 context Leaderboard

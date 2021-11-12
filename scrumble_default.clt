@@ -361,6 +361,22 @@
         </strategy>
         <hidden>false</hidden>
     </node>
+    <node id="ReportType" sizeCalculated="true" type="Enumeration">
+        <name>ReportType</name>
+        <strategy type="org.tzi.use.gui.views.diagrams.elements.positioning.StrategyFixed">
+            <x>446.0</x>
+            <y>991.0</y>
+        </strategy>
+        <hidden>false</hidden>
+    </node>
+    <node id="PlayDirection" sizeCalculated="true" type="Enumeration">
+        <name>PlayDirection</name>
+        <strategy type="org.tzi.use.gui.views.diagrams.elements.positioning.StrategyFixed">
+            <x>33.0</x>
+            <y>78.0</y>
+        </strategy>
+        <hidden>false</hidden>
+    </node>
     <node id="RequestStatus" sizeCalculated="true" type="Enumeration">
         <name>RequestStatus</name>
         <strategy type="org.tzi.use.gui.views.diagrams.elements.positioning.StrategyFixed">
@@ -392,7 +408,7 @@
                     <attached>RecievedMessage::WayPoint::2</attached>
                     <offset_x>8</offset_x>
                     <offset_y>8</offset_y>
-                    <placement>BOTTOM</placement>
+                    <placement>TOP</placement>
                 </strategy>
                 <hidden>false</hidden>
             </edgeproperty>
@@ -405,7 +421,7 @@
                     <attached>RecievedMessage::WayPoint::2</attached>
                     <offset_x>8</offset_x>
                     <offset_y>8</offset_y>
-                    <placement>TOP</placement>
+                    <placement>BOTTOM</placement>
                 </strategy>
                 <hidden>false</hidden>
             </edgeproperty>
@@ -418,7 +434,7 @@
                     <attached>RecievedMessage::WayPoint::0</attached>
                     <offset_x>8</offset_x>
                     <offset_y>8</offset_y>
-                    <placement>TOP</placement>
+                    <placement>BOTTOM</placement>
                 </strategy>
                 <hidden>false</hidden>
             </edgeproperty>
@@ -432,7 +448,7 @@
                     <attached>RecievedMessage::WayPoint::0</attached>
                     <offset_x>8</offset_x>
                     <offset_y>8</offset_y>
-                    <placement>BOTTOM</placement>
+                    <placement>TOP</placement>
                 </strategy>
                 <hidden>false</hidden>
             </edgeproperty>
@@ -894,7 +910,7 @@
                     <attached>Plays::WayPoint::0</attached>
                     <offset_x>8</offset_x>
                     <offset_y>8</offset_y>
-                    <placement>BOTTOM</placement>
+                    <placement>TOP</placement>
                 </strategy>
                 <hidden>false</hidden>
             </edgeproperty>
@@ -907,7 +923,7 @@
                     <attached>Plays::WayPoint::0</attached>
                     <offset_x>8</offset_x>
                     <offset_y>8</offset_y>
-                    <placement>TOP</placement>
+                    <placement>BOTTOM</placement>
                 </strategy>
                 <hidden>false</hidden>
             </edgeproperty>
@@ -2426,6 +2442,26 @@
             <edgeproperty id="Reported::WayPoint::0"
                 sizeCalculated="true" type="WayPoint" userDefined="true" visible="true">
                 <name>0</name>
+                <strategy type="org.tzi.use.gui.views.diagrams.elements.positioning.StrategyAttachedIntersection">
+                    <userOffsetX>0.0</userOffsetX>
+                    <userOffsetY>0.0</userOffsetY>
+                </strategy>
+                <id>0</id>
+                <specialid>1</specialid>
+                <hidden>false</hidden>
+            </edgeproperty>
+            <edgeproperty id="Reported::WayPoint::1" sizeCalculated="true" type="WayPoint" userDefined="true" visible="true">
+                <name>1</name>
+                <strategy type="org.tzi.use.gui.views.diagrams.elements.positioning.StrategyFixed">
+                    <x>186.0</x>
+                    <y>340.0</y>
+                </strategy>
+                <id>1</id>
+                <specialid>0</specialid>
+                <hidden>false</hidden>
+            </edgeproperty>
+            <edgeproperty id="Reported::WayPoint::2" sizeCalculated="true" type="WayPoint" userDefined="true" visible="true">
+                <name>2</name>
                 <strategy type="org.tzi.use.gui.views.diagrams.elements.positioning.StrategyRelativeToCorner">
                     <userOffsetX>68.52003623445043</userOffsetX>
                     <userOffsetY>2.0</userOffsetY>
@@ -2438,8 +2474,8 @@
                     <corner>NORTH_WEST</corner>
                     <relativeNodeId>Report</relativeNodeId>
                 </strategy>
-                <id>0</id>
-                <specialid>1</specialid>
+                <id>2</id>
+                <specialid>2</specialid>
                 <hidden>false</hidden>
             </edgeproperty>
             <edgeproperty id="Reported::WayPoint::1"
@@ -2600,7 +2636,7 @@
                     <attached>SentMessage::WayPoint::2</attached>
                     <offset_x>8</offset_x>
                     <offset_y>8</offset_y>
-                    <placement>BOTTOM</placement>
+                    <placement>TOP</placement>
                 </strategy>
                 <hidden>false</hidden>
             </edgeproperty>
@@ -2613,7 +2649,7 @@
                     <attached>SentMessage::WayPoint::2</attached>
                     <offset_x>8</offset_x>
                     <offset_y>8</offset_y>
-                    <placement>TOP</placement>
+                    <placement>BOTTOM</placement>
                 </strategy>
                 <hidden>false</hidden>
             </edgeproperty>
@@ -2627,7 +2663,7 @@
                     <attached>SentMessage::WayPoint::0</attached>
                     <offset_x>8</offset_x>
                     <offset_y>8</offset_y>
-                    <placement>BOTTOM</placement>
+                    <placement>TOP</placement>
                 </strategy>
                 <hidden>false</hidden>
             </edgeproperty>
@@ -2640,7 +2676,7 @@
                     <attached>SentMessage::WayPoint::0</attached>
                     <offset_x>8</offset_x>
                     <offset_y>8</offset_y>
-                    <placement>TOP</placement>
+                    <placement>BOTTOM</placement>
                 </strategy>
                 <hidden>false</hidden>
             </edgeproperty>
@@ -2707,7 +2743,7 @@
                     <corner>NORTH_WEST</corner>
                     <relativeNodeId>Message</relativeNodeId>
                 </strategy>
-                <id>2</id>
+                <id>1</id>
                 <specialid>2</specialid>
                 <hidden>false</hidden>
             </edgeproperty>
@@ -2828,8 +2864,8 @@
                     <relativeNodeId>Dictionary</relativeNodeId>
                 </strategy>
                 <id>1</id>
-                <specialid>3</specialid>
-                <hidden>true</hidden>
+                <specialid>2</specialid>
+                <hidden>false</hidden>
             </edgeproperty>
             <edgeproperty id="OnlyDict::WayPoint::2"
                 sizeCalculated="true" type="WayPoint"
@@ -2847,9 +2883,7 @@
                     <corner>NORTH_EAST</corner>
                     <relativeNodeId>Dictionary</relativeNodeId>
                 </strategy>
-                <id>2</id>
-                <specialid>4</specialid>
-                <hidden>true</hidden>
+                <hidden>false</hidden>
             </edgeproperty>
             <edgeproperty id="OnlyDict::WayPoint::3"
                 sizeCalculated="true" type="WayPoint"
@@ -2867,9 +2901,9 @@
                     <corner>NORTH_EAST</corner>
                     <relativeNodeId>Dictionary</relativeNodeId>
                 </strategy>
-                <id>3</id>
-                <specialid>5</specialid>
-                <hidden>true</hidden>
+                <id>0</id>
+                <specialid>1</specialid>
+                <hidden>false</hidden>
             </edgeproperty>
             <edgeproperty id="OnlyDict::WayPoint::4"
                 sizeCalculated="true" type="WayPoint"
@@ -2887,7 +2921,7 @@
                     <corner>NORTH_EAST</corner>
                     <relativeNodeId>Dictionary</relativeNodeId>
                 </strategy>
-                <id>4</id>
+                <id>1</id>
                 <specialid>2</specialid>
                 <hidden>false</hidden>
             </edgeproperty>
@@ -2895,9 +2929,9 @@
         <hidden>false</hidden>
     </edge>
     <edge type="BinaryEdge">
-        <source>Player</source>
-        <target>Request</target>
-        <name>SentRequest</name>
+        <source>MatchRequest</source>
+        <target>Match</target>
+        <name>RequestMatch</name>
         <properties>
             <edgeproperty id="SentRequest::target::multiplicity"
                 sizeCalculated="true" type="multiplicity"
@@ -2963,8 +2997,8 @@
                     <offsetX>0.0</offsetX>
                     <offsetY>-10.0</offsetY>
                     <related length="2">
-                        <related0>SentRequest::WayPoint::0</related0>
-                        <related1>SentRequest::WayPoint::1</related1>
+                        <related0>RequestMatch::WayPoint::0</related0>
+                        <related1>RequestMatch::WayPoint::2</related1>
                     </related>
                 </strategy>
                 <hidden>false</hidden>
@@ -2984,7 +3018,7 @@
                     <deltaY>0.0</deltaY>
                     <maxDeltaY>1.7976931348623157E308</maxDeltaY>
                     <corner>NORTH_WEST</corner>
-                    <relativeNodeId>Player</relativeNodeId>
+                    <relativeNodeId>MatchRequest</relativeNodeId>
                 </strategy>
                 <id>0</id>
                 <specialid>1</specialid>
@@ -2993,6 +3027,16 @@
             <edgeproperty id="SentRequest::WayPoint::1"
                 sizeCalculated="true" type="WayPoint" userDefined="true" visible="true">
                 <name>1</name>
+                <strategy type="org.tzi.use.gui.views.diagrams.elements.positioning.StrategyFixed">
+                    <x>833.0</x>
+                    <y>320.0</y>
+                </strategy>
+                <id>1</id>
+                <specialid>0</specialid>
+                <hidden>false</hidden>
+            </edgeproperty>
+            <edgeproperty id="RequestMatch::WayPoint::2" sizeCalculated="true" type="WayPoint" userDefined="true" visible="true">
+                <name>2</name>
                 <strategy type="org.tzi.use.gui.views.diagrams.elements.positioning.StrategyRelativeToCorner">
                     <userOffsetX>2.0</userOffsetX>
                     <userOffsetY>30.51701262654791</userOffsetY>
@@ -3003,9 +3047,9 @@
                     <deltaY>0.0</deltaY>
                     <maxDeltaY>1.7976931348623157E308</maxDeltaY>
                     <corner>NORTH_WEST</corner>
-                    <relativeNodeId>Request</relativeNodeId>
+                    <relativeNodeId>Match</relativeNodeId>
                 </strategy>
-                <id>1</id>
+                <id>2</id>
                 <specialid>2</specialid>
                 <hidden>false</hidden>
             </edgeproperty>
@@ -3013,9 +3057,9 @@
         <hidden>false</hidden>
     </edge>
     <edge type="BinaryEdge">
-        <source>Word</source>
-        <target>Letter</target>
-        <name>Spelling</name>
+        <source>Play</source>
+        <target>Tile</target>
+        <name>Use</name>
         <properties>
             <edgeproperty id="Spelling::target::rolename"
                 sizeCalculated="true" type="rolename" userDefined="true" visible="true">
@@ -3040,7 +3084,7 @@
                     <attached>Spelling::WayPoint::1</attached>
                     <offset_x>8</offset_x>
                     <offset_y>8</offset_y>
-                    <placement>BOTTOM</placement>
+                    <placement>TOP</placement>
                 </strategy>
                 <hidden>false</hidden>
             </edgeproperty>
@@ -3048,12 +3092,12 @@
                 sizeCalculated="true" type="rolename" userDefined="true" visible="true">
                 <name>words</name>
                 <strategy type="org.tzi.use.gui.views.diagrams.elements.positioning.StrategyRelativeToAttached">
-                    <userOffsetX>9.0</userOffsetX>
-                    <userOffsetY>1.0</userOffsetY>
-                    <attached>Spelling::WayPoint::0</attached>
+                    <userOffsetX>0.0</userOffsetX>
+                    <userOffsetY>0.0</userOffsetY>
+                    <attached>Use::WayPoint::1</attached>
                     <offset_x>8</offset_x>
                     <offset_y>8</offset_y>
-                    <placement>TOP</placement>
+                    <placement>BOTTOM</placement>
                 </strategy>
                 <hidden>false</hidden>
             </edgeproperty>
@@ -3067,7 +3111,7 @@
                     <attached>Spelling::WayPoint::0</attached>
                     <offset_x>8</offset_x>
                     <offset_y>8</offset_y>
-                    <placement>BOTTOM</placement>
+                    <placement>TOP</placement>
                 </strategy>
                 <hidden>false</hidden>
             </edgeproperty>
@@ -3076,13 +3120,13 @@
                 userDefined="true" visible="true">
                 <name>Spelling</name>
                 <strategy type="org.tzi.use.gui.views.diagrams.elements.positioning.StrategyInBetween">
-                    <userOffsetX>25.0</userOffsetX>
-                    <userOffsetY>10.0</userOffsetY>
+                    <userOffsetX>0.0</userOffsetX>
+                    <userOffsetY>0.0</userOffsetY>
                     <offsetX>0.0</offsetX>
                     <offsetY>-10.0</offsetY>
                     <related length="2">
-                        <related0>Spelling::WayPoint::0</related0>
-                        <related1>Spelling::WayPoint::1</related1>
+                        <related0>Use::WayPoint::0</related0>
+                        <related1>Use::WayPoint::1</related1>
                     </related>
                 </strategy>
                 <hidden>false</hidden>
@@ -3117,9 +3161,9 @@
         <hidden>false</hidden>
     </edge>
     <edge type="BinaryEdge">
-        <source>Player</source>
-        <target>Request</target>
-        <name>RecievedRequest</name>
+        <source>DateTime</source>
+        <target>DateTime</target>
+        <name>CurrentTime</name>
         <properties>
             <edgeproperty id="RecievedRequest::target::rolename"
                 sizeCalculated="true" type="rolename" userDefined="true" visible="true">
@@ -3130,7 +3174,7 @@
                     <attached>RecievedRequest::WayPoint::1</attached>
                     <offset_x>8</offset_x>
                     <offset_y>8</offset_y>
-                    <placement>TOP</placement>
+                    <placement>BOTTOM</placement>
                 </strategy>
                 <hidden>false</hidden>
             </edgeproperty>
@@ -3144,7 +3188,7 @@
                     <attached>RecievedRequest::WayPoint::1</attached>
                     <offset_x>8</offset_x>
                     <offset_y>8</offset_y>
-                    <placement>BOTTOM</placement>
+                    <placement>TOP</placement>
                 </strategy>
                 <hidden>false</hidden>
             </edgeproperty>
@@ -3185,11 +3229,67 @@
                     <offsetX>0.0</offsetX>
                     <offsetY>-10.0</offsetY>
                     <related length="2">
-                        <related0>RecievedRequest::WayPoint::0</related0>
-                        <related1>RecievedRequest::WayPoint::1</related1>
+                        <related0>CurrentTime::WayPoint::2</related0>
+                        <related1>CurrentTime::WayPoint::3</related1>
                     </related>
                 </strategy>
                 <hidden>false</hidden>
+            </edgeproperty>
+        </properties>
+        <waypoints>
+            <edgeproperty id="CurrentTime::WayPoint::0" sizeCalculated="true" type="WayPoint" userDefined="false" visible="true">
+                <name>0</name>
+                <strategy type="org.tzi.use.gui.views.diagrams.elements.positioning.StrategyRelativeToCorner">
+                    <userOffsetX>0.0</userOffsetX>
+                    <userOffsetY>0.0</userOffsetY>
+                    <basisDeltaX>ABSOLUTE</basisDeltaX>
+                    <deltaX>0.0</deltaX>
+                    <maxDeltaX>0.0</maxDeltaX>
+                    <basisDeltaY>RELATIVE</basisDeltaY>
+                    <deltaY>-0.3333</deltaY>
+                    <maxDeltaY>66.66</maxDeltaY>
+                    <corner>NORTH_EAST</corner>
+                    <relativeNodeId>DateTime</relativeNodeId>
+                </strategy>
+                <id>0</id>
+                <specialid>1</specialid>
+                <hidden>false</hidden>
+            </edgeproperty>
+            <edgeproperty id="CurrentTime::WayPoint::1" sizeCalculated="true" type="WayPoint" userDefined="false" visible="false">
+                <name>1</name>
+                <strategy type="org.tzi.use.gui.views.diagrams.elements.positioning.StrategyRelativeToCorner">
+                    <userOffsetX>0.0</userOffsetX>
+                    <userOffsetY>0.0</userOffsetY>
+                    <basisDeltaX>RELATIVE</basisDeltaX>
+                    <deltaX>0.6666</deltaX>
+                    <maxDeltaX>133.32</maxDeltaX>
+                    <basisDeltaY>RELATIVE</basisDeltaY>
+                    <deltaY>-0.3333</deltaY>
+                    <maxDeltaY>66.66</maxDeltaY>
+                    <corner>NORTH_EAST</corner>
+                    <relativeNodeId>DateTime</relativeNodeId>
+                </strategy>
+                <id>1</id>
+                <specialid>3</specialid>
+                <hidden>true</hidden>
+            </edgeproperty>
+            <edgeproperty id="CurrentTime::WayPoint::2" sizeCalculated="true" type="WayPoint" userDefined="false" visible="false">
+                <name>2</name>
+                <strategy type="org.tzi.use.gui.views.diagrams.elements.positioning.StrategyRelativeToCorner">
+                    <userOffsetX>0.0</userOffsetX>
+                    <userOffsetY>0.0</userOffsetY>
+                    <basisDeltaX>RELATIVE</basisDeltaX>
+                    <deltaX>0.6666</deltaX>
+                    <maxDeltaX>133.32</maxDeltaX>
+                    <basisDeltaY>RELATIVE</basisDeltaY>
+                    <deltaY>0.6666</deltaY>
+                    <maxDeltaY>133.32</maxDeltaY>
+                    <corner>NORTH_EAST</corner>
+                    <relativeNodeId>DateTime</relativeNodeId>
+                </strategy>
+                <id>2</id>
+                <specialid>4</specialid>
+                <hidden>true</hidden>
             </edgeproperty>
         </properties>
         <waypoints>
@@ -3208,9 +3308,9 @@
                     <corner>NORTH_WEST</corner>
                     <relativeNodeId>Player</relativeNodeId>
                 </strategy>
-                <id>0</id>
-                <specialid>1</specialid>
-                <hidden>false</hidden>
+                <id>3</id>
+                <specialid>5</specialid>
+                <hidden>true</hidden>
             </edgeproperty>
             <edgeproperty id="RecievedRequest::WayPoint::1"
                 sizeCalculated="true" type="WayPoint" userDefined="true" visible="true">
@@ -3223,11 +3323,11 @@
                     <maxDeltaX>1.7976931348623157E308</maxDeltaX>
                     <basisDeltaY>ABSOLUTE</basisDeltaY>
                     <deltaY>0.0</deltaY>
-                    <maxDeltaY>1.7976931348623157E308</maxDeltaY>
-                    <corner>NORTH_WEST</corner>
-                    <relativeNodeId>Request</relativeNodeId>
+                    <maxDeltaY>0.0</maxDeltaY>
+                    <corner>NORTH_EAST</corner>
+                    <relativeNodeId>DateTime</relativeNodeId>
                 </strategy>
-                <id>1</id>
+                <id>4</id>
                 <specialid>2</specialid>
                 <hidden>false</hidden>
             </edgeproperty>
@@ -3235,9 +3335,9 @@
         <hidden>false</hidden>
     </edge>
     <edge type="BinaryEdge">
-        <source>MatchRequest</source>
-        <target>Match</target>
-        <name>RequestMatch</name>
+        <source>Rack</source>
+        <target>Tile</target>
+        <name>Hold</name>
         <properties>
             <edgeproperty id="RequestMatch::target::multiplicity"
                 sizeCalculated="true" type="multiplicity"
@@ -3276,7 +3376,7 @@
                     <attached>RequestMatch::WayPoint::0</attached>
                     <offset_x>8</offset_x>
                     <offset_y>8</offset_y>
-                    <placement>BOTTOM</placement>
+                    <placement>TOP</placement>
                 </strategy>
                 <hidden>false</hidden>
             </edgeproperty>
@@ -3289,7 +3389,7 @@
                     <attached>RequestMatch::WayPoint::0</attached>
                     <offset_x>8</offset_x>
                     <offset_y>8</offset_y>
-                    <placement>TOP</placement>
+                    <placement>BOTTOM</placement>
                 </strategy>
                 <hidden>false</hidden>
             </edgeproperty>
@@ -3303,8 +3403,8 @@
                     <offsetX>0.0</offsetX>
                     <offsetY>-10.0</offsetY>
                     <related length="2">
-                        <related0>RequestMatch::WayPoint::0</related0>
-                        <related1>RequestMatch::WayPoint::1</related1>
+                        <related0>Hold::WayPoint::0</related0>
+                        <related1>Hold::WayPoint::1</related1>
                     </related>
                 </strategy>
                 <hidden>false</hidden>
@@ -3380,7 +3480,7 @@
                     <attached>Use::WayPoint::2</attached>
                     <offset_x>8</offset_x>
                     <offset_y>8</offset_y>
-                    <placement>BOTTOM</placement>
+                    <placement>TOP</placement>
                 </strategy>
                 <hidden>false</hidden>
             </edgeproperty>
@@ -3501,7 +3601,7 @@
                     <attached>CurrentTime::WayPoint::4</attached>
                     <offset_x>8</offset_x>
                     <offset_y>8</offset_y>
-                    <placement>TOP</placement>
+                    <placement>BOTTOM</placement>
                 </strategy>
                 <hidden>false</hidden>
             </edgeproperty>
@@ -3728,6 +3828,26 @@
             <edgeproperty id="Hold::WayPoint::0" sizeCalculated="true"
                 type="WayPoint" userDefined="true" visible="true">
                 <name>0</name>
+                <strategy type="org.tzi.use.gui.views.diagrams.elements.positioning.StrategyAttachedIntersection">
+                    <userOffsetX>0.0</userOffsetX>
+                    <userOffsetY>0.0</userOffsetY>
+                </strategy>
+                <id>0</id>
+                <specialid>1</specialid>
+                <hidden>false</hidden>
+            </edgeproperty>
+            <edgeproperty id="Claim::WayPoint::1" sizeCalculated="true" type="WayPoint" userDefined="true" visible="true">
+                <name>1</name>
+                <strategy type="org.tzi.use.gui.views.diagrams.elements.positioning.StrategyFixed">
+                    <x>154.0</x>
+                    <y>307.0</y>
+                </strategy>
+                <id>1</id>
+                <specialid>0</specialid>
+                <hidden>false</hidden>
+            </edgeproperty>
+            <edgeproperty id="Claim::WayPoint::2" sizeCalculated="true" type="WayPoint" userDefined="true" visible="true">
+                <name>2</name>
                 <strategy type="org.tzi.use.gui.views.diagrams.elements.positioning.StrategyRelativeToCorner">
                     <userOffsetX>-24.723749399598205</userOffsetX>
                     <userOffsetY>104.0</userOffsetY>
@@ -3759,7 +3879,7 @@
                     <corner>NORTH_WEST</corner>
                     <relativeNodeId>Tile</relativeNodeId>
                 </strategy>
-                <id>1</id>
+                <id>2</id>
                 <specialid>2</specialid>
                 <hidden>false</hidden>
             </edgeproperty>
@@ -3915,7 +4035,7 @@
                     <attached>Stock::WayPoint::2</attached>
                     <offset_x>8</offset_x>
                     <offset_y>8</offset_y>
-                    <placement>TOP</placement>
+                    <placement>BOTTOM</placement>
                 </strategy>
                 <hidden>false</hidden>
             </edgeproperty>
@@ -3942,7 +4062,7 @@
                     <attached>Stock::WayPoint::0</attached>
                     <offset_x>8</offset_x>
                     <offset_y>8</offset_y>
-                    <placement>BOTTOM</placement>
+                    <placement>TOP</placement>
                 </strategy>
                 <hidden>false</hidden>
             </edgeproperty>
@@ -4036,7 +4156,7 @@
                     <attached>ChatState::WayPoint::1</attached>
                     <offset_x>8</offset_x>
                     <offset_y>8</offset_y>
-                    <placement>BOTTOM</placement>
+                    <placement>TOP</placement>
                 </strategy>
                 <hidden>false</hidden>
             </edgeproperty>
@@ -4049,7 +4169,7 @@
                     <attached>ChatState::WayPoint::0</attached>
                     <offset_x>8</offset_x>
                     <offset_y>8</offset_y>
-                    <placement>TOP</placement>
+                    <placement>BOTTOM</placement>
                 </strategy>
                 <hidden>false</hidden>
             </edgeproperty>
@@ -4063,7 +4183,7 @@
                     <attached>ChatState::WayPoint::0</attached>
                     <offset_x>8</offset_x>
                     <offset_y>8</offset_y>
-                    <placement>BOTTOM</placement>
+                    <placement>TOP</placement>
                 </strategy>
                 <hidden>false</hidden>
             </edgeproperty>
@@ -4199,7 +4319,7 @@
                     <attached>Rack::WayPoint::0</attached>
                     <offset_x>8</offset_x>
                     <offset_y>8</offset_y>
-                    <placement>BOTTOM</placement>
+                    <placement>TOP</placement>
                 </strategy>
                 <hidden>false</hidden>
             </edgeproperty>
@@ -4212,7 +4332,7 @@
                     <attached>Rack::WayPoint::0</attached>
                     <offset_x>8</offset_x>
                     <offset_y>8</offset_y>
-                    <placement>TOP</placement>
+                    <placement>BOTTOM</placement>
                 </strategy>
                 <hidden>false</hidden>
             </edgeproperty>
@@ -4318,7 +4438,7 @@
                 </strategy>
                 <id>-1</id>
                 <specialid>7</specialid>
-                <hidden>false</hidden>
+                <hidden>true</hidden>
             </edgeproperty>
         </connectionNode>
         <associationClass>
@@ -4789,7 +4909,7 @@
                     <deltaY>0.0</deltaY>
                     <maxDeltaY>1.7976931348623157E308</maxDeltaY>
                     <corner>NORTH_WEST</corner>
-                    <relativeNodeId>Identifiable</relativeNodeId>
+                    <relativeNodeId>Player</relativeNodeId>
                 </strategy>
                 <id>1</id>
                 <specialid>2</specialid>
@@ -4933,8 +5053,8 @@
         <hidden>false</hidden>
     </edge>
     <edge type="Generalization">
-        <source>Match</source>
-        <target>Observer</target>
+        <source>Report</source>
+        <target>Observable</target>
         <name>Inheritance</name>
         <properties/>
         <waypoints>
@@ -4975,8 +5095,8 @@
         <hidden>false</hidden>
     </edge>
     <edge type="Generalization">
-        <source>Play</source>
-        <target>Observable</target>
+        <source>Match</source>
+        <target>Observer</target>
         <name>Inheritance</name>
         <properties/>
         <waypoints>
@@ -5048,7 +5168,7 @@
         <hidden>false</hidden>
     </edge>
     <edge type="Generalization">
-        <source>Request</source>
+        <source>Play</source>
         <target>Observable</target>
         <name>Inheritance</name>
         <properties/>
@@ -5097,8 +5217,8 @@
         <hidden>false</hidden>
     </edge>
     <edge type="Generalization">
-        <source>Message</source>
-        <target>Identifiable</target>
+        <source>Request</source>
+        <target>Observable</target>
         <name>Inheritance</name>
         <properties/>
         <waypoints>
