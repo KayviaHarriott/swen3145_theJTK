@@ -11,9 +11,10 @@ enum BlockStatus {BLOCKED, UNBLOCKED}
 enum ChatStatus {OPEN, CLOSED}
 enum MatchStatus {INPROGRESS, COMPLETE, ABANDONED}
 enum MessageStatus {UNSEEN, SEEN}
-enum PlayerStatus {ONLINE, OFFLINE, AWAY, PLAYING}
+enum PlayerStatus {ONLINE, OFFLINE, AWAY, PLAYING, BANNED}
 enum ReportStatus {UNRESOLVED, UNDER_REVIEW, RESOLVED}
 enum RequestStatus {PENDING, ACCEPTED, REJECTED, RECINDED, LOST}
+enum WordStatus {VALID, DEPRECATED}
 
 enum MatchType {RANKED, UNRANKED}
 enum PlayType {PLAY, PASS, QUIT}
@@ -34,11 +35,11 @@ enum PlayDirection {HORIZONTAL, VERTICAL}
 --!       a queue of players and make matches. It would be observable by
 --!       Player so a player can get updates when a match is made. We may need
 --!       a queue for each type of match
---!     - If we can delete messages and reply to messages then we would add
---!       methods for those as well
---!     - If Datetime becomes observable then would it still be a datatype?
 --!     - Figure out how to manage adding and removing words since you
 --!       wouldn't want changes to affect past games
+--!     - May need a letter factory to facilitate creating new letters for
+--!       words
+--!     - Need a tile factory to create tiles for each match
 --!
 --!     DESIGN PATTERN REFINEMENTS
 --!         Observer Pattern
@@ -237,6 +238,11 @@ operations
         self.hour, self.minute, s); end
     post mutationSuccess: second = s
 
+    setToNow()
+    begin self.initialise(self.now.year, self.now.month, self.now.day,
+        self.now.hour, self.now.minute, self.now.minute); end
+    post mutationSuccess: self.equals(now)
+
     --------------------------------Predicates--------------------------------
 
     -- returns true if all the attributes are not null, false otherwise
@@ -327,6 +333,9 @@ operations
         hourValid(hr) and minuteValid(min) and secondValid(sec)
 
     isSelfValid(): Boolean = isValid(year, month, day, hour, minute, second)
+
+    equalsNow(): Boolean = self.equals(self.now)
+    pre nowExists: not now->isEmpty()
 
     --------------------------------Operations--------------------------------
 
@@ -518,7 +527,47 @@ operations
         endif
 end -- Period Class
 
-class Player < Identifiable, Observer
+class User < Identifiable
+operations
+    -- wrappers for the capabilities/operations of all types of users
+    -- (Players and admins)
+end -- User Class
+
+class Role
+attributes
+    --
+operations
+    --
+end -- Role Class
+
+class Admin
+attributes
+    --
+operations
+    -- Sets the status of the report to #UNDER_REVIEW
+    reviewReport(r: Report)
+    pre argIsValid: r <> null
+    pre isUnresolved: r.getStatus() = #UNRESOLVED
+    post mutationSuccess: r.getStatus() = #UNDER_REVIEW
+
+    -- Sets the status of the report as resolved
+    resolveReport(r: Report)
+    pre argIsValid: r <> null
+    pre isUnderReview: r.getStatus() = #UNDER_REVIEW
+    post mutationSuccess: r.getStatus() = #RESOLVED
+
+    -- Creates a new word and adds it to the dictionary
+    --addWord(w: Sequence(Letter), cat: Category)
+
+    -- Sets a word as depricated
+    --depricateWord(w: Word)
+
+    -- Bans a player
+    --banPlayer(p: Player)
+    -- Sets their status to banned
+end -- Admin Class
+
+class Player < Observer
 attributes
     username: String
     email: String
@@ -563,8 +612,9 @@ operations
 
     pre argIsValid: q <> null
     pre playerIsOnline: status = #ONLINE
-    post joinSuccessful: ((queues->size() - queues@pre->size()) = 1) and
-        join.joinedAt->forAll(d | d.equals(dob.now)) and
+    pre playerNotInQueue: queues->size() = 1
+    post joinSuccessful: (q@pre.players->including(self) = q.players) and
+        join.joinedAt->forAll(d | d.equalsNow()) and
         (queues->size() = 1)
 
     -- Removes the player from the match queue
@@ -577,25 +627,32 @@ operations
 
     pre playerIsInQueue: queues->size() = 1
     pre playerIsOnline: status = #ONLINE
-    post leaveSuccessful: ((queues->size() - queues@pre->size()) = -1) and
-        (queues->size() = 0)
+    post leaveSuccessful: (queues->size() = 0) and
+        (queues@pre.players->excluding(self) = queues.players)
 
     -- Sends a request to the specified player
     sendMsg(c: Chat, msg: String)
     pre playerIsOnline: status = #ONLINE
     pre argsAreValid: c <> null and msg.size() > 0
-    post msgSent: c.messages->last().getBody() = msg and
-        (c.messages->size() - c@pre.messages->size()) = 1
-    post msgDateSet: c.messages->last().sentDate.equals(
-        c.messages->last().sentDate.now)
+    post msgSent:
+        let
+            newMsg = c.messages->last()
+        in newMsg.oclIsNew() and
+            c.messages@pre->including(newMsg) = c.messages and
+            newMsg.getBody() = msg and
+            newMsg.sentDate.equalsNow()
 
     -- Sends a request to the specified player
     sendReq(p: Player, t: RequestType)
     pre playerIsOnline: status = #ONLINE
     pre argsAreValid: p <> null and t <> null
-    post reqSent: (sentReqs->size() - sentReqs@pre->size()) = 1
-    --post reqDateSet: need a way to access the last request to check this
-    --sentReqs->last().sentDate.equals(sentReqs->last().sentDate.now)
+    post reqSent:
+        let
+            newReq = sentReqs->select(req | req.oclIsNew())
+        in newReq->size() = 1 and
+            sentReqs@pre->union(newReq) = sentReqs and
+            p.rcvdReqs@pre->union(newReq) = p.rcvdReqs and
+            newReq->one(req | req.sentDate.equalsNow())
 
     -- Updates the status of a received request
     addressReq(req: Request, action: Boolean)
@@ -604,66 +661,80 @@ operations
     post reqAddressed: (action and req.status = #ACCEPTED) or
         ((not action) and req.status = #REJECTED)
     post activePeriodSet: req.activePeriod <> null and
-        req.activePeriod.getStart().equals(req.sentDate.now)
+        req.activePeriod.getStart().equalsNow()
 
     -- Adds a player to the player's blocked list
     blockPlayer(p: Player)
     pre playerIsOnline: status = #ONLINE
     pre argIsValid: p <> null
-    post playerBlocked: blocked->includes(p)
-    -- and the block status is set to #BLOCKED
-    --post blockedDateSet:
+    post playerBlocked: block[player]->exists(b |
+        b.blocked->asSet() = Set{p} and b.status = #BLOCKED and
+        b.date.equalsNow())
 
     -- Creates a bug report
     reportBug(msg: String)
     pre playerIsOnline: status = #ONLINE
     pre argIsValid: msg.size() > 0
-    post bugReported: (claims->size() - claims@pre->size()) = 1
-    --post messageSet: need a way to access the last report to check this
+    post bugReported:
+        let
+            newClaim = claims->select(c | c.oclIsNew())
+        in newClaim->size() = 1 and
+            claims@pre->union(newClaim) = claims and
+            newClaim->one(c | c.getDesc() = msg and c.reported->isEmpty())
 
     -- Creates a report against the specified player
     reportPlayer(p: Player, msg: String)
     pre playerIsOnline: status = #ONLINE
     pre argIsValid: p <> null and msg.size() > 0
-    post playerReported: (claims->size() - claims@pre->size()) = 1
-    --post messageSet: need a way to access the last report to check this
+    post playerReported:
+        let
+            newClaim = claims->select(c | c.oclIsNew())
+        in newClaim->size() = 1 and
+            claims@pre->union(newClaim) = claims and
+            newClaim->one(c |
+                c.getDesc() = msg and Set{p} = c.reported->asSet())
 
     -- Opens the specified chat (Should this take a player or the chat?)
     openChat(c: Chat)
     pre playerIsOnline: status = #ONLINE
     pre argIsValid: c <> null
-    -- #TODO Turn this into an invariant as well
-    pre noOtherChatOpen: chatRooms->size() = 0
-    --post chatOpened: need a way to access the ChatState class to check
+    pre noChatOpen: chatState
+        ->select(cs | cs.status = #OPEN)->size() = 0
+    post onlySpecifiedChatOpen: chatState
+        ->select(cs | cs.status = #OPEN).chatRooms->asSet() = Set{c}
 
-    -- We don't have state tracking for what match is open or closed yet
     -- Closes the specified chat
-    --closeChat(c: Chat)
+    closeChat()
+    pre playerIsOnline: status = #ONLINE
+    pre chatOpen: chatState
+        ->select(cs | cs.status = #OPEN)->size() = 1
+    post chatProperlyClosed:
+        let
+            openedChat = chatState@pre
+                ->select(cs | cs.status = #OPEN).chatRooms->asSet()
+        in chatState->one(cs |
+            openedChat = cs.chatRooms->asSet() and
+            cs.status = #CLOSED and cs.lastOpened.equalsNow())
 
     -- We don't have state tracking for what match is open or closed yet
     -- Opens the specified match
     --openMatch(m: Match)
 
+    -- We don't have state tracking for what match is open or closed yet
     -- Closes the specified match
     --closeMatch(m: Match)
 
     -- Executes actions that should occur once the player opens the app or
     -- logs in
      openApp()
-    begin
-        self.status := #ONLINE;
-    end
-
+    begin self.status := #ONLINE; end
     pre notOnline: status = #OFFLINE
     post statusUpdated: status = #ONLINE
 
     -- Executes actions that should occur once the player closes the app
     -- or logs out
     closeApp()
-    begin
-        self.status := #OFFLINE;
-    end
-
+    begin self.status := #OFFLINE; end
     pre isNotOffline: status <> #OFFLINE
     post statusUpdated: status = #OFFLINE
 end -- Player Class
@@ -679,10 +750,7 @@ operations
 
     -- Sets the message status to SEEN
     view()
-    begin
-        self.status := #SEEN;
-    end
-
+    begin self.status := #SEEN; end
     pre msgUnseen: status = #UNSEEN
     post statusUpdated: status = #SEEN
 end -- Message Class
@@ -717,8 +785,13 @@ operations
     createMessage(sender: Player, msg: String)
     pre isOpen: chatState.status->includes(#OPEN)
     pre argIsValid: sender <> null and msg.size() > 0
-    post msgCreated: (messages->size() - messages@pre->size()) = 1 and
-        messages->last().getBody() = msg
+    post msgCreated:
+        let
+            newMsg = messages->last()
+        in newMsg.oclIsNew() and
+            messages@pre->including(newMsg) = messages and
+            newMsg.getBody() = msg and
+            newMsg.sentDate.equalsNow()
 
     -- Marks all the newest received messages as seen
     view(p: Player)
@@ -749,7 +822,7 @@ operations
     setClosed() -- set lastOpened date and set ChatStatus to CLOSED
     pre openned: status = #OPEN
     post closed: status = #CLOSED
-    post lastOpenedSet: lastOpened.equals(lastOpened.now)
+    post lastOpenedSet: lastOpened.equalsNow()
 end -- End ChatState Association Class
 
 class Request < Identifiable, Observable
@@ -759,32 +832,29 @@ attributes
     activePeriod: Period
     type: RequestType
 operations
+    -- Matk the request as accepted
     accept()
-        begin
-            self.status := #ACCEPTED;
-        end
-        pre: status = #PENDING;
+    begin self.status := #ACCEPTED; end
+    pre isPending: status = #PENDING
+    post statusUpdated: status = #ACCEPTED
 
     -- Mark the request as rejected
     reject()
-        begin
-            self.status := #REJECTED;
-        end
-        pre: status = #PENDING;
+    begin self.status := #REJECTED; end
+    pre isPending: status = #PENDING
+    post statusUpdated: status = #REJECTED
 
     -- Mark the request as recinded
     recind()
-        begin
-                self.status := #RECINDED;
-        end
-        pre: status = #PENDING;
+    begin self.status := #RECINDED; end
+    pre isAccepted: status = #ACCEPTED
+    post statusUpdated: status = #RECINDED
 
     -- Mark the request as lost
     block()
-        begin
-                self.status := #LOST;
-        end
-        pre: status = #PENDING;
+    begin self.status := #LOST; end
+    pre isPending: status = #PENDING
+    post statusUpdated: status = #LOST
 end -- Request Class
 
 class MatchRequest < Request
@@ -793,7 +863,10 @@ attributes
     timed: Boolean
 operations
     -- Mark the request as accepted and creates a new match
-    --accept()
+    accept()
+    pre isPending: status = #PENDING
+    post statusUpdated: status = #ACCEPTED
+    post newMatchCreated: match->size() = 1
 end -- MatchRequest Class
 
 associationclass Block
@@ -815,21 +888,32 @@ class Report < Observable
 attributes
     type: ReportType
     status: ReportStatus init: #UNRESOLVED
+    description: String
 operations
-    --getters
+    init(repType: ReportType, desc: String, p: Player)
+    pre argsAreValid: repType <> null and desc.size() > 0 and
+        ((repType = #PLAYER and p <> null) or
+        (repType <> #PLAYER and p = null))
+    post initSuccess: type = repType and description = desc and
+        reported = p and status = #UNRESOLVED
 
-    -- Mark the report as under review
-    --review()
-
-    -- Mark the report as resolved
-    --resolve()
+    getStatus(): ReportStatus = status
+    getDesc(): String = description
 end -- Report Class
 
 -------------------------------------Game-------------------------------------
 
-class Queue
+class Queue < Observable
 operations
-    --
+    -- Creates matches between players
+    matchmaking()
+    -- I'm thinking of having the method be recursive to allow it to loop
+    -- until all players
+    -- I'm also thinking of just having it be called at the start of the
+    -- system and running for the lifetime of the system
+    pre playersInQueue: not players->isEmpty()
+    --post: check that the queue is empty or the remaining players are
+    -- unmatchable
 end -- Queue Class
 
 associationclass Join
@@ -890,7 +974,7 @@ operations
         Set{sRow, sCol, dir}->excludes(null) and tileSeq->size() > 0
     post attributesSet: startRow = sRow and startCol = sCol and
         direction = dir and type = t and time <> null and
-        time.equals(time.now)
+        time.equalsNow()
 
     -- Calculates the points accumulated by the placement of the tiles on the
     -- board
@@ -929,6 +1013,8 @@ operations
     getTile(): Tile = tile
     getTileString(): String = getTile().getLetterString()
 
+    --fill(t: Tile)
+
     isEmpty(): Boolean = tile->isEmpty()
 end -- Slot Class
 
@@ -952,6 +1038,9 @@ end -- Letter Class
 
 class TileBag
 operations
+    -- Calls a method in the Tile factory to create all the letters for the
+    -- match
+    --init()
     -- Randomly picks a tile from the bag
     --remove
 end -- TileBag Class
@@ -960,6 +1049,7 @@ class Word
 attributes
     String: Word
     category: Category init: #NONE
+    status: WordStatus init: #VALID
 operations
     -- Returns a String that represents the word
     getWord(): String = letters->iterate(l; ans: String = '' |
@@ -988,13 +1078,25 @@ attributes
     duration: Period
     category: Category
     status: MatchStatus init: #INPROGRESS
-    score: Integer derived = playHistory->iterate(p; ans: Integer = 0 |
-                                if playHistory->indexOf(p).mod(2) = 1 then
-                                    ans + p.score
-                                else
-                                    ans - p.score
-                                endif)
+    score: Integer derived = updateSlider()
 operations
+    -- Creates a new match
+    init(matchType: MatchType, matchTimed: Boolean, cat: Category)
+    pre argsAreValid: matchType <> null and matchTimed <> null and
+        (matchType = #RANKED implies matchTimed) and cat <> null
+    post isInitialised: type = matchType and timed = matchTimed and
+        category = cat and status = #INPROGRESS and score = 0 and
+        duration.getStart().equalsNow()
+
+    -- Updates the position of the slider
+    updateSlider(): Integer =
+    playHistory->iterate(p; ans: Integer = 0 |
+        if playHistory->indexOf(p).mod(2) = 1 then
+            ans + p.score
+        else
+            ans - p.score
+        endif)
+
     --getters
     --update(o: Observable)
 
@@ -1009,8 +1111,9 @@ operations
     post playMade:
             let
                 lp = playHistory->last()
-            in lp.type = #PASS and lp.time.equals(lp.time.now) and
-                (playHistory->size() - playHistory@pre->size()) = 1
+            in lp.type = #PASS and lp.time.equalsNow() and
+                playHistory@pre->including(lp) = playHistory and
+                lp.oclIsNew()
 
     executeQuit(r: Rack)
     -- Creates a play with type pass
@@ -1018,8 +1121,9 @@ operations
     post playMade:
             let
                 lp = playHistory->last()
-            in lp.type = #QUIT and lp.time.equals(lp.time.now) and
-                (playHistory->size() - playHistory@pre->size()) = 1
+            in lp.type = #QUIT and lp.time.equalsNow() and
+                playHistory@pre->including(lp) = playHistory and
+                lp.oclIsNew()
 
     executePlay(r: Rack, sRow: Integer, sCol: Integer, dir: PlayDirection,
     tileSeq: OrderedSet(Tile))
@@ -1029,8 +1133,9 @@ operations
     post playMade:
             let
                 lp = playHistory->last()
-            in lp.type = #PLAY and lp.time.equals(lp.time.now) and
-                (playHistory->size() - playHistory@pre->size()) = 1
+            in lp.type = #PLAY and lp.time.equalsNow() and
+                playHistory@pre->including(lp) = playHistory and
+                lp.oclIsNew()
     post tilesPlaced:
         if dir = #HORIZONTAL then
             Sequence{sCol..15}->iterate(c; ans: Set(Tile) = Set{} |
@@ -1116,9 +1221,15 @@ association Watches between
     Observable[*]
 end -- Watches Association
 
+association UserRole between
+    User[1]
+    Role[1]
+end -- UserRole Association
+
+
 association CurrentTime between
     DateTime[*]
-    DateTime[0..1] role now
+    DateTime[1] role now
 end -- CurrentTime Association
 
 association PeriodInterval between
@@ -1392,6 +1503,11 @@ context Player
             Set{fr.reqSender, fr.reqRcvr} = Set{mr.reqSender, mr.reqRcvr} and
                 fr.activePeriod.containsDate(mr.sentDate)
         ))
+
+        -- Players may only have one chat open at a time
+        inv noOtherChatOpen: chatState
+            ->select(cs | cs.status = #OPEN)
+            ->size() <= 1
 
     -- Can only chat if one player has accepted a message or friend request
     -- from the other player
@@ -1749,7 +1865,8 @@ context Dictionary
 
     -- No duplicate words
     inv uniqueWords: words->forAll(w1, w2 |
-            w1 <> w2 implies (not w1.equals(w2.getWord()))
+            Set{w1.status, w2.status}->excludes(#DEPRECATED) and
+            (w1 <> w2 implies (not w1.equals(w2.getWord())))
         )
 -- End Dictionary Constraints
 
