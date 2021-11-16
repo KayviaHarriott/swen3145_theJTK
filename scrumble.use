@@ -573,7 +573,7 @@ attributes
     email: String
     dob: DateTime
     score: Integer init: 500
-    status: PlayerStatus
+    status: PlayerStatus init: #OFFLINE
     state: ProfileState init: #PRIVATE
 operations
     --getters (we'll have to restrict what may be obtained in the method I
@@ -726,7 +726,7 @@ operations
 
     -- Executes actions that should occur once the player opens the app or
     -- logs in
-     openApp()
+    openApp()
     begin self.status := #ONLINE; end
     pre notOnline: status = #OFFLINE
     post statusUpdated: status = #ONLINE
@@ -737,6 +737,35 @@ operations
     begin self.status := #OFFLINE; end
     pre isNotOffline: status <> #OFFLINE
     post statusUpdated: status = #OFFLINE
+
+    -- Methods to set the status to away
+statemachines
+    psm playerStates
+    states
+        offline: initial [status = #OFFLINE]
+        online [status = #ONLINE]
+        away [status = #AWAY]
+        playing [status = #PLAYING]
+        banned: final [status = #BANNED]
+    transitions
+        offline -> online {openApp()}
+        offline -> banned
+
+        online -> offline {closeApp()}
+        online -> playing
+        online -> away
+        online -> banned
+
+        away -> online
+        away -> offline {closeApp()}
+        away -> playing
+        away -> banned
+
+        playing -> online
+        playing -> offline {closeApp()}
+        playing -> away
+        playing -> banned
+    end
 end -- Player Class
 
 class Message < Identifiable
@@ -753,11 +782,19 @@ operations
     begin self.status := #SEEN; end
     pre msgUnseen: status = #UNSEEN
     post statusUpdated: status = #SEEN
+statemachines
+    psm msgStates
+    states
+        unseen: initial [status = #UNSEEN]
+        seen: final [status = #SEEN]
+    transitions
+        unseen -> seen {view()}
+    end
 end -- Message Class
 
 class Notification
 attributes
-        deliverytime: DateTime
+    deliverytime: DateTime
     dismissed: Boolean init: false
 operations
     -- Matks the message as dismissed
@@ -777,6 +814,14 @@ operations
 
     -- gotoAndDismiss helper for report event notifications
     --gotoReportHelper
+statemachines
+    psm notificationStates
+    states
+        unseen: initial [dismissed = false]
+        seen: final [dismissed = true]
+    transitions
+        unseen -> seen {dismiss()}
+    end
 end
 
 class Chat < Observable
@@ -855,6 +900,20 @@ operations
     begin self.status := #LOST; end
     pre isPending: status = #PENDING
     post statusUpdated: status = #LOST
+statemachines
+    psm requestStates
+    states
+        pending: initial [status = #PENDING]
+        accepted [statud = #CCEPTED]
+        rejected: final [status = #REJECTED]
+        recinded: final [status = #RECINDED]
+        lost: final [status = #LOST]
+    transitions
+        pending -> accepted {accept()}
+        pending -> rejected {reject()}
+        pending -> lost {block()}
+        accepted -> recinded {recind()}
+    end
 end -- Request Class
 
 class MatchRequest < Request
@@ -899,6 +958,16 @@ operations
 
     getStatus(): ReportStatus = status
     getDesc(): String = description
+statemachines
+    psm reportStates
+    states
+        unresolved: initial [status = #UNRESOLVED]
+        underReview [status = #UNDER_REVIEW]
+        resolved: final [status = #RESOLVED]
+    transitions
+        unresolved -> underReview
+        underReview -> resolved
+    end
 end -- Report Class
 
 -------------------------------------Game-------------------------------------
@@ -1192,6 +1261,16 @@ operations
             playHelperPlayIntersects(sRow, sCol, dir, tcnt)) or
         (playHistory->size() = 0 and sRow = 8 and sCol = 8 and
                 dir <> null and tcnt > 0))
+statemachines
+    psm matchStates
+    states
+        inprogress: initial [status = #INPROGRESS]
+        completed: final [status = #COMPLETE]
+        abandoned: final [status = #ABANDONED]
+    transitions
+        inprogress -> completed
+        inprogress -> abandoned
+    end
 end -- Match Class
 
 class Leaderboard < Observer
