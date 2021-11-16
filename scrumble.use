@@ -1,8 +1,8 @@
 ------------------------------------------------------------------------------
 --! @authors: Jason Hunter, Kayvia Harriott, Tashna-Gail Williams
 --! Created on: 2021-10-11
---! @version: 0.4.8
---! Last Updated: 2021-11-12 10:29:05
+--! @version: 0.4.9
+--! Last Updated: 2021-11-16 00:28:46
 ------------------------------------------------------------------------------
 
 model scrumble
@@ -26,6 +26,7 @@ enum ProfileState {PRIVATE, PUBLIC}
 enum PlayDirection {HORIZONTAL, VERTICAL}
 
 --! @TODO:
+--!     - All the method bodies need to be specified
 --!     - Add attributes to represent the rest of the player's profile data
 --!     - Rack might need an enum to indicate that a player has a specific
 --!       match open so it doesn't generate notifs when the match is open and
@@ -1410,6 +1411,8 @@ operations
         category = cat and status = #INPROGRESS and score = 0 and
         duration.getStart().equalsNow()
 
+    --getters
+
     --! updateSlider doc
     --! @brief Updates the position of the slider
     --!
@@ -1421,8 +1424,6 @@ operations
         else
             ans - p.score
         endif)
-
-    --getters
 
     --! update doc
     --! @brief This is the method called by the observable to update the
