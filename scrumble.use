@@ -855,12 +855,15 @@ operations
 statemachines
     psm playerStates
     states
-        offline: initial [status = #OFFLINE]
+        start: initial
+        offline [status = #OFFLINE]
         online [status = #ONLINE]
         away [status = #AWAY]
         playing [status = #PLAYING]
         banned: final [status = #BANNED]
     transitions
+        start -> offline
+
         offline -> online {openApp()}
         offline -> banned
 
@@ -980,7 +983,7 @@ operations
     --! @param Player p The player trying to view the messages
     view(p: Player)
     pre isOpen: chatState->one(cs |
-        cs.participants->includesAll(Set{p}) and status = #OPEN)
+        cs.participants->includesAll(Set{p}) and cs.status = #OPEN)
     pre argIsValid: p <> null
     post noUnseenMsgs: not messages->exists(m |
         m.status = #UNSEEN and m.msgSender <> p)
@@ -1049,12 +1052,14 @@ operations
 statemachines
     psm requestStates
     states
-        pending: initial [status = #PENDING]
-        accepted [statud = #CCEPTED]
+        start: initial
+        pending [status = #PENDING]
+        accepted [status = #ACCEPTED]
         rejected: final [status = #REJECTED]
         recinded: final [status = #RECINDED]
         lost: final [status = #LOST]
     transitions
+        start -> pending
         pending -> accepted {accept()}
         pending -> rejected {reject()}
         pending -> lost {block()}
@@ -1574,10 +1579,12 @@ operations
 statemachines
     psm matchStates
     states
-        inprogress: initial [status = #INPROGRESS]
+        start: initial
+        inprogress [status = #INPROGRESS]
         completed: final [status = #COMPLETE]
         abandoned: final [status = #ABANDONED]
     transitions
+        start -> inprogress
         inprogress -> completed
         inprogress -> abandoned
     end
@@ -1823,8 +1830,8 @@ context Player
     -- each unique pair of players.
     inv onlyOnePendingReqPerPlayerPair:
         let
-            pending = sentReqs->select(req | req.status = #PENDING) +
-                rcvdReqs->select(req | req.status = #PENDING)
+            pending = sentReqs->select(req | req.status = #PENDING)
+                ->union(rcvdReqs->select(req | req.status = #PENDING))
         in pending->forAll(r1, r2 |
             (r1 <> r2 and r1.type = r2.type) implies (
                 (r1.reqSender <> r2.reqSender and r1.reqRcvr <> r2.reqRcvr) or
