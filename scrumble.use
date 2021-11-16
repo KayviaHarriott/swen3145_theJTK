@@ -40,6 +40,7 @@ enum PlayDirection {HORIZONTAL, VERTICAL}
 --!     - May need a letter factory to facilitate creating new letters for
 --!       words
 --!     - Need a tile factory to create tiles for each match
+--!     - Update invariants that use allInstances
 --!
 --!     DESIGN PATTERN REFINEMENTS
 --!         Observer Pattern
@@ -90,8 +91,13 @@ end -- Identifiable
 
 abstract class Observer
 operations
-    -- This is the method called by the observable to update the Observer
-    --update(o: Observable)
+    --! update doc
+    --! @brief This is the method called by the observable to update the
+    --!        Observer
+    --!
+    --! @param Observable o The observable that called the method
+    update(o: Observable)
+    -- #TODO Pre and Post
 end -- Observer Class
 
 abstract class Observable
@@ -121,8 +127,13 @@ attributes
     secondsSinceEposh: Integer derived:
         toSecondsSinceEposh(year, month, day, hour, minute, second)
 operations
-    -- Takes a duration in seconds and it into years, months, days
-    -- hours, minutes and seconds
+    --! makeHumanReadable doc
+    --! @brief Takes a duration in seconds and it into years, months, days
+    --!        hours, minutes and seconds
+    --!
+    --! @param Integer sec The number of seconds since the eposh time
+    --! @return Tuple(y: Integer, m: Integer, d: Integer,
+    --!         hr: Integer, min: Integer, sec: Integer)
     makeHumanReadable(sec: Integer): Tuple(
     y: Integer, m: Integer, d: Integer,
     hr: Integer, min: Integer, sec: Integer) =
@@ -155,6 +166,17 @@ operations
     post resultIsValid: isValid(result.y, result.m, result.d,
         result.hr, result.min, result.sec)
 
+    --! toSecondsSinceEposh doc
+    --! @brief Converts the human-readable date to the number of seconds
+    --!        since the eposh time
+    --!
+    --! @param Integer y The year of the time to be converted
+    --! @param Integer m The month of the time to be converted
+    --! @param Integer d The day of the time to be converted
+    --! @param Integer hr The hour of the time to be converted
+    --! @param Integer min The minute of the time to be converted
+    --! @param Integer sec The second of the time to be converted
+    --! @return Integer
     toSecondsSinceEposh(y: Integer, m: Integer, d: Integer,
     hr: Integer, min: Integer, sec: Integer): Integer =
         let
@@ -177,6 +199,15 @@ operations
         in result >= 0 and y = date.y and m = date.m and d = date.d and
             hr = date.hr and min = date.min and sec = date.sec
 
+    --! initialise doc
+    --! @brief Initialises the datetime instance
+    --!
+    --! @param Integer y The year to set the datetime to
+    --! @param Integer m The month to set the datetime to
+    --! @param Integer d The day to set the datetime to
+    --! @param Integer hr The hour to set the datetime to
+    --! @param Integer min The minute to set the datetime to
+    --! @param Integer sec The second to set the datetime to
     initialise(y: Integer, m: Integer, d: Integer,
     hr: Integer, min: Integer, sec: Integer)
     begin
@@ -544,27 +575,48 @@ class Admin
 attributes
     --
 operations
-    -- Sets the status of the report to #UNDER_REVIEW
+    --! reviewReport doc
+    --! @brief Sets the status of the report to #UNDER_REVIEW
+    --!
+    --! @param Report r The report to update the status of
     reviewReport(r: Report)
     pre argIsValid: r <> null
     pre isUnresolved: r.getStatus() = #UNRESOLVED
     post mutationSuccess: r.getStatus() = #UNDER_REVIEW
 
-    -- Sets the status of the report as resolved
+    --! resolveReport doc
+    --! @brief Sets the status of the report as resolved
+    --!
+    --! @param Report r The report to update the status of
     resolveReport(r: Report)
     pre argIsValid: r <> null
     pre isUnderReview: r.getStatus() = #UNDER_REVIEW
     post mutationSuccess: r.getStatus() = #RESOLVED
 
-    -- Creates a new word and adds it to the dictionary
-    --addWord(w: Sequence(Letter), cat: Category)
+    --! addWprd doc
+    --! @brief Creates a new word and adds it to the dictionary
+    --!
+    --! @param Type <var> Description
+    --! @param Type <var> Description
+    addWord(w: Sequence(Letter), cat: Category)
+    -- #TODO Pre and Post
 
-    -- Sets a word as depricated
-    --depricateWord(w: Word)
+    --! depricatedWord doc
+    --! @brief Sets a word as depricated
+    --!
+    --! @param Word w The word to be deprecated
+    --! @return type
+    --! @throws conditon
+    deprecateWord(w: Word)
+    -- #TODO Pre and Post
 
-    -- Bans a player
-    --banPlayer(p: Player)
+    --! banPlayer doc
+    --! @brief Bans a player
+    --!
+    --! @param Player p Player to be banned
+    banPlayer(p: Player)
     -- Sets their status to banned
+    -- #TODO Pre and Post
 end -- Admin Class
 
 class Player < Observer
@@ -579,32 +631,57 @@ operations
     --getters (we'll have to restrict what may be obtained in the method I
     -- think)
 
-    -- Generates notifications based on what event occured
-    --update(o: Observable)
+    --! update doc
+    --! @brief Generates notifications based on what event occured
+    --!
+    --! @param Observable o The observable that called the method
+    update(o: Observable)
+    -- #TODO Pre and Post
 
-    -- Updates the player's score if a ranked match was completed or abandoned
-    --updateHelperMatch(o: Match)
+    --! updateHelperMatch doc
+    --! @brief Updates the player's score if a ranked match was completed
+    --!        or abandoned
+    --!
+    --! @param Match o The match that called the update method
+    updateHelperMatch(o: Match)
     -- for the body we could generate a decimal value based on the difference
     -- in the players' ranks, the time it took to end the game, average points
     -- per play, average time per play
     -- we could cap the amount your score increases to +/- 25 points
+    -- #TODO Pre and Post
 
-    -- update helper function for chat events
-    --updateHelperChat(o: Chat)
+    --! updateHelperChat doc
+    --! @brief update helper function for chat events
+    --!
+    --! @param Chat o The Chat that called the update method
+    updateHelperChat(o: Chat)
+    -- #TODO Pre and Post
 
-    -- update helper function for request events
-    --updateHelperRequest(o: Request)
+    --! updateHelperRequest doc
+    --! @brief update helper function for request events
+    --!
+    --! @param Request o The Request that called the update method
+    updateHelperRequest(o: Request)
+    -- #TODO Pre and Post
 
-    -- update helper function for report events
-    --updateHelperReport(o: Report)
+    --! updateHelperReport doc
+    --! @brief update helper function for report events
+    --!
+    --! @param Report o The Report that called the update method
+    updateHelperReport(o: Report)
+    -- #TODO Pre and Post
 
-    -- update helper function for matchRequest events
-    --updateHelperMatchReq(o: MatchRequest)
+    --! updateHelperMatchReq doc
+    --! @brief update helper function for matchRequest events
+    --!
+    --! @param MatchRequest o The MatchRequest that called the update method
+    updateHelperMatchReq(o: MatchRequest)
+    -- #TODO Pre and Post
 
-    -- Sends a message in a given chat
-    --sendMsg(c: Chat, msg: String)
-
-    -- Adds the player to the match queue
+    --! joinQueue doc
+    --! @brief Adds the player to the match queue
+    --!
+    --! @param Queue q The queue to be joined
     joinQueue(q: Queue)
     begin
         new Join() between (q, self);
@@ -617,7 +694,8 @@ operations
         join.joinedAt->forAll(d | d.equalsNow()) and
         (queues->size() = 1)
 
-    -- Removes the player from the match queue
+    --! leaveQueue doc
+    --! @brief Removes the player from the match queue they are currently in
     leaveQueue()
     begin
         for q in self.queues do
@@ -630,7 +708,11 @@ operations
     post leaveSuccessful: (queues->size() = 0) and
         (queues@pre.players->excluding(self) = queues.players)
 
-    -- Sends a request to the specified player
+    --! sendMsg doc
+    --! @brief Sends a message in the specified chat
+    --!
+    --! @param Chat c The chat to send the message in
+    --! @param String msg The message to be sent
     sendMsg(c: Chat, msg: String)
     pre playerIsOnline: status = #ONLINE
     pre argsAreValid: c <> null and msg.size() > 0
@@ -642,7 +724,11 @@ operations
             newMsg.getBody() = msg and
             newMsg.sentDate.equalsNow()
 
-    -- Sends a request to the specified player
+    --! sendReq doc
+    --! @brief Sends a request to the specified player
+    --!
+    --! @param Player p The player to send the request to
+    --! @param RequestType t The type of request to be sent
     sendReq(p: Player, t: RequestType)
     pre playerIsOnline: status = #ONLINE
     pre argsAreValid: p <> null and t <> null
@@ -653,17 +739,28 @@ operations
             sentReqs@pre->union(newReq) = sentReqs and
             p.rcvdReqs@pre->union(newReq) = p.rcvdReqs and
             newReq->one(req | req.sentDate.equalsNow())
+            -- should also check that the status is pending or blocked on the
+            -- receivers side
 
-    -- Updates the status of a received request
+    --! addressReq doc
+    --! @brief Updates the status of a received request
+    --!
+    --! @param Request req The received request to be addressed
+    --! @param Boolean action Boolean representing accepting (true) or
+    --!                   rejecting (false) the request
     addressReq(req: Request, action: Boolean)
     pre playerIsOnline: status = #ONLINE
     pre argsAreValid: req <> null and action <> null
+    pre reqIsPending: req.status = #PENDING
     post reqAddressed: (action and req.status = #ACCEPTED) or
         ((not action) and req.status = #REJECTED)
     post activePeriodSet: req.activePeriod <> null and
         req.activePeriod.getStart().equalsNow()
 
-    -- Adds a player to the player's blocked list
+    --! blockPlayer doc
+    --! @brief Adds a player to the player's blocked list
+    --!
+    --! @param Player p The player to be blocked
     blockPlayer(p: Player)
     pre playerIsOnline: status = #ONLINE
     pre argIsValid: p <> null
@@ -671,7 +768,10 @@ operations
         b.blocked->asSet() = Set{p} and b.status = #BLOCKED and
         b.date.equalsNow())
 
-    -- Creates a bug report
+    --! reportBug doc
+    --! @brief Creates a bug report
+    --!
+    --! @param String msg A description of the bug being reported
     reportBug(msg: String)
     pre playerIsOnline: status = #ONLINE
     pre argIsValid: msg.size() > 0
@@ -682,7 +782,11 @@ operations
             claims@pre->union(newClaim) = claims and
             newClaim->one(c | c.getDesc() = msg and c.reported->isEmpty())
 
-    -- Creates a report against the specified player
+    --! reportPlayer doc
+    --! @brief Creates a report against the specified player
+    --!
+    --! @param Player p The player to be reported
+    --! @param String msg The reason for reporting the player
     reportPlayer(p: Player, msg: String)
     pre playerIsOnline: status = #ONLINE
     pre argIsValid: p <> null and msg.size() > 0
@@ -694,7 +798,10 @@ operations
             newClaim->one(c |
                 c.getDesc() = msg and Set{p} = c.reported->asSet())
 
-    -- Opens the specified chat (Should this take a player or the chat?)
+    --! openChat doc
+    --! @brief Opens the specified chat
+    --!
+    --! @param Chat c The chat to be opened
     openChat(c: Chat)
     pre playerIsOnline: status = #ONLINE
     pre argIsValid: c <> null
@@ -703,7 +810,8 @@ operations
     post onlySpecifiedChatOpen: chatState
         ->select(cs | cs.status = #OPEN).chatRooms->asSet() = Set{c}
 
-    -- Closes the specified chat
+    --! closeChat doc
+    --! @brief Closes the currently opened chat
     closeChat()
     pre playerIsOnline: status = #ONLINE
     pre chatOpen: chatState
@@ -719,26 +827,30 @@ operations
     -- We don't have state tracking for what match is open or closed yet
     -- Opens the specified match
     --openMatch(m: Match)
+    -- #TODO Pre and Post
 
     -- We don't have state tracking for what match is open or closed yet
     -- Closes the specified match
     --closeMatch(m: Match)
+    -- #TODO Pre and Post
 
-    -- Executes actions that should occur once the player opens the app or
-    -- logs in
+    --! openApp doc
+    --! @brief Executes actions that should occur once the player opens the
+    --!        app or logs in
     openApp()
     begin self.status := #ONLINE; end
     pre notOnline: status = #OFFLINE
     post statusUpdated: status = #ONLINE
 
-    -- Executes actions that should occur once the player closes the app
-    -- or logs out
+    --! closeApp doc
+    --! @brief Executes actions that should occur once the player closes the
+    --!        app or logs out
     closeApp()
     begin self.status := #OFFLINE; end
     pre isNotOffline: status <> #OFFLINE
     post statusUpdated: status = #OFFLINE
 
-    -- Methods to set the status to away
+    -- #TODO Methods to set the status to away
 statemachines
     psm playerStates
     states
@@ -775,9 +887,14 @@ attributes
     sentDate: DateTime
     seenDate: DateTime
 operations
+    --! getBody doc
+    --! @brief Returns the body/contents of the message
+    --!
+    --! @return String
     getBody(): String = message
 
-    -- Sets the message status to SEEN
+    --! view doc
+    --! @brief Sets the message status to SEEN
     view()
     begin self.status := #SEEN; end
     pre msgUnseen: status = #UNSEEN
@@ -797,23 +914,36 @@ attributes
     deliverytime: DateTime
     dismissed: Boolean init: false
 operations
-    -- Matks the message as dismissed
-    -- dismiss()
+    --! dismiss doc
+    --! @brief Marks the notification as dismissed
+    dismiss()
+    -- #TODO Pre and Post
 
-    -- Opens the app to the relevant view then dismisses the notification
-    --gotoAndDismiss()
+    --! gotoAndDismiss doc
+    --! @brief Opens the app to the relevant view then dismisses the
+    --!        notification
+    gotoAndDismiss()
+    -- #TODO Pre and Post
 
-    -- gotoAndDismiss helper for chat event notifications
-    --gotoChatHelper
+    --! gotoChatHelper doc
+    --! @brief gotoAndDismiss helper for chat event notifications
+    gotoChatHelper()
+    -- #TODO Pre and Post
 
-    -- gotoAndDismiss helper for match event notifications
-    --gotoMatchHelper
+    --! gotoMatchHelper doc
+    --! @brief gotoAndDismiss helper for match event notifications
+    gotoMatchHelper()
+    -- #TODO Pre and Post
 
-    -- gotoAndDismiss helper for request event notifications
-    --gotoRequestHelper
+    --! gotoRequestHelper doc
+    --! @brief gotoAndDismiss helper for request event notifications
+    gotoRequestHelper()
+    -- #TODO Pre and Post
 
-    -- gotoAndDismiss helper for report event notifications
-    --gotoReportHelper
+    --! gotoReportHelper doc
+    --! @brief gotoAndDismiss helper for report event notifications
+    gotoReportHelper()
+    -- #TODO Pre and Post
 statemachines
     psm notificationStates
     states
@@ -826,7 +956,11 @@ end
 
 class Chat < Observable
 operations
-    -- Creates a new message
+    --! createMessage doc
+    --! @brief Creates a new message in the chat
+    --!
+    --! @param Player sender The player sending the message
+    --! @param String msg The message to be sent
     createMessage(sender: Player, msg: String)
     pre isOpen: chatState.status->includes(#OPEN)
     pre argIsValid: sender <> null and msg.size() > 0
@@ -838,11 +972,14 @@ operations
             newMsg.getBody() = msg and
             newMsg.sentDate.equalsNow()
 
-    -- Marks all the newest received messages as seen
+    --! view doc
+    --! @brief Marks all the newest received messages as seen and dismisses
+    --!        any linked notifications that have not been dismissed
+    --!
+    --! @param Player p The player trying to view the messages
     view(p: Player)
-    pre isOpen: chatState.status->includes(#OPEN)
-    -- would also check if the player passed is the one that opened the chat
-    -- if possible
+    pre isOpen: chatState->one(cs |
+        cs.participants->includesAll(Set{p}) and status = #OPEN)
     pre argIsValid: p <> null
     post noUnseenMsgs: not messages->exists(m |
         m.status = #UNSEEN and m.msgSender <> p)
@@ -856,15 +993,19 @@ attributes
     status: ChatStatus init: #CLOSED
     lastOpened: DateTime
 operations
-    -- Sets the chat state to open
-    setOpen() -- view all unseen messages and set ChatStatus to OPEN
+    --! setOpen doc
+    --! @brief Sets the chat state to #OPEN
+    setOpen()
+    -- view all unseen messages and set ChatStatus to OPEN
     pre notOpen: status = #CLOSED
     post openned: status = #OPEN
     post latestMsgSeen: not chatRooms.messages->exists(m |
         m.status = #UNSEEN and participants->excludes(m.msgSender))
 
-    -- Sets the chat state to closed
-    setClosed() -- set lastOpened date and set ChatStatus to CLOSED
+    --! setClosed doc
+    --! @brief Sets the chat state to #CLOSED
+    setClosed()
+    -- set lastOpened date and set ChatStatus to CLOSED
     pre openned: status = #OPEN
     post closed: status = #CLOSED
     post lastOpenedSet: lastOpened.equalsNow()
@@ -877,25 +1018,29 @@ attributes
     activePeriod: Period
     type: RequestType
 operations
-    -- Matk the request as accepted
+    --! accept doc
+    --! @brief Mark the request as accepted
     accept()
     begin self.status := #ACCEPTED; end
     pre isPending: status = #PENDING
     post statusUpdated: status = #ACCEPTED
 
-    -- Mark the request as rejected
+    --! reject doc
+    --! @brief Mark the request as rejected
     reject()
     begin self.status := #REJECTED; end
     pre isPending: status = #PENDING
     post statusUpdated: status = #REJECTED
 
-    -- Mark the request as recinded
+    --! recind doc
+    --! @brief Mark the request as recinded
     recind()
     begin self.status := #RECINDED; end
     pre isAccepted: status = #ACCEPTED
     post statusUpdated: status = #RECINDED
 
-    -- Mark the request as lost
+    --! block doc
+    --! @brief Mark the request as lost
     block()
     begin self.status := #LOST; end
     pre isPending: status = #PENDING
@@ -921,7 +1066,8 @@ attributes
     matchType: MatchType
     timed: Boolean
 operations
-    -- Mark the request as accepted and creates a new match
+    --! accept doc
+    --! @brief Mark the request as accepted and creates a new match
     accept()
     pre isPending: status = #PENDING
     post statusUpdated: status = #ACCEPTED
@@ -936,11 +1082,15 @@ attributes
     date: DateTime
     status: BlockStatus init: #BLOCKED
 operations
-    -- Mark a player as blocked
-    --block()
+    --! block doc
+    --! @brief Mark a player as blocked
+    block()
+    -- #TODO Pre and Post
 
-    -- Mark a player as unblocked
-    --unblock()
+    --! unblock doc
+    --! @brief Mark a player as unblocked
+    unblock()
+    -- #TODO Pre and Post
 end -- Block Association Class
 
 class Report < Observable
@@ -949,6 +1099,12 @@ attributes
     status: ReportStatus init: #UNRESOLVED
     description: String
 operations
+    --! init doc
+    --! @brief Initializes the report
+    --! @param ReportType repType The type of report to be made
+    --! @param String desc A description of the bug/reason for reporting a
+    --!                    player
+    --! @param Player p The player to be reported
     init(repType: ReportType, desc: String, p: Player)
     pre argsAreValid: repType <> null and desc.size() > 0 and
         ((repType = #PLAYER and p <> null) or
@@ -956,7 +1112,16 @@ operations
     post initSuccess: type = repType and description = desc and
         reported = p and status = #UNRESOLVED
 
+    --! getStatus doc
+    --! @brief Returns the status of the report
+    --!
+    --! @return ReportStatus
     getStatus(): ReportStatus = status
+
+    --! getDesc doc
+    --! @brief Returns the description of the report
+    --!
+    --! @return String
     getDesc(): String = description
 statemachines
     psm reportStates
@@ -974,7 +1139,8 @@ end -- Report Class
 
 class Queue < Observable
 operations
-    -- Creates matches between players
+    --! matchmaking doc
+    --! @brief Creates matches between players
     matchmaking()
     -- I'm thinking of having the method be recursive to allow it to loop
     -- until all players
@@ -1002,7 +1168,8 @@ between
     Player[2] role players
     Match[*] role matchHistory ordered
 operations
-    -- Makes a play
+    --! triggerPlay doc
+    --! @brief starts the process of making a play
     triggerPlay(sRow: Integer, sCol: Integer, dir: PlayDirection,
     tileSeq: OrderedSet(Tile))
     -- Essentially a wrapper for the play method in match
@@ -1011,12 +1178,14 @@ operations
         tileSeq->size() > 0 and tiles->includesAll(tileSeq)
     post tilesRemoved: tiles->excludesAll(tileSeq)
 
-    -- Passes a turn
+    --! triggerPass doc
+    --! @brief Starts the process of passing a turn
     triggerPass()
     pre playerIsInGame: players.status = #PLAYING
     post: true
 
-    -- Forfeits the game
+    --! triggerQuit
+    --! @brief Starts the process of forfeiting the game
     triggerQuit()
     pre playerIsInGame: players.status = #PLAYING
     post: true
@@ -1035,7 +1204,18 @@ attributes
     time: DateTime
     multiplier: Real derived = calcMultiplier()
 operations
-    -- Initializes the play
+    --! init doc
+    --! @brief Initializes the play
+    --!
+    --! The main word of a play is the word that lies in the same row/column
+    --! as all the tiles places on the board for that play
+    --!
+    --! @param Integer sRow The row where the main word of the play starts
+    --! @param Integer sCol The column where the main word of the play starts
+    --! @param PlayDirection dir The direction in which the main word is spelt
+    --! @param OrderedSet(Tile) tileSeq The set of tiles to be used to make
+    --!                                 the play
+    --! @param PlayType t The type of play being made
     init(sRow: Integer, sCol: Integer, dir: PlayDirection,
     tileSeq: OrderedSet(Tile), t: PlayType)
     -- Essentially a wrapper for the executePlay method in match
@@ -1045,8 +1225,11 @@ operations
         direction = dir and type = t and time <> null and
         time.equalsNow()
 
-    -- Calculates the points accumulated by the placement of the tiles on the
-    -- board
+    --! calcScore doc
+    --! @brief Calculates the points accumulated by the placement of the tiles
+    --!        on the board
+    --!
+    --! @return Integer
     calcScore(): Integer =
         let
             activeTiles = rack.tiles->union(match.board.slots.tile)->asSet(),
@@ -1060,6 +1243,10 @@ operations
     pre isAPlay: type = #PLAY
     post: true
 
+    --! calcMultiplier doc
+    --! @brief Determines the score multiplier for the play
+    --!
+    --! @return Real
     calcMultiplier(): Real =
         if words.category->excluding(#NONE)
         ->includes(match.category) then
@@ -1078,12 +1265,28 @@ class Slot
 attributes
     filledAt: DateTime
 operations
-    --getters and setters
+    --! getTile doc
+    --! @brief Returns the tile in the slot
+    --!
+    --! @return Tile
     getTile(): Tile = tile
+
+    --! getTileString doc
+    --! @brief Returns the letter on the tile in the slot as a string
+    --!
+    --! @return String
     getTileString(): String = getTile().getLetterString()
 
-    --fill(t: Tile)
+    --! fill doc
+    --! @brief Places a Tile into the slot
+    --!
+    --! @param Tile t The tile to be placed in the slot
+    fill(t: Tile)
+    -- #TODO Pre and Post
 
+    --! isEmpty doc
+    --! @brief Returns true if the slot does not contain a tile
+    --! @return Boolean
     isEmpty(): Boolean = tile->isEmpty()
 end -- Slot Class
 
@@ -1091,8 +1294,22 @@ class Tile
 attributes
     points: Integer
 operations
+    --! getLetter doc
+    --! @brief Returns the letter on the Tile
+    --!
+    --! @return Letter
     getLetter(): Letter = letter
+
+    --! getLetterString doc
+    --! @brief Returns the letter on the Tile as a string
+    --!
+    --! @return String
     getLetterString(): String = getLetter().getLetter()
+
+    --! getPoints doc
+    --! @brief Returns the point value of the Tile
+    --!
+    --! @return Integer
     getPoints(): Integer = points
 end -- Tile Class
 
@@ -1100,18 +1317,34 @@ class Letter
 attributes
     letter: String
 operations
+    --! getLetter doc
+    --! @brief Returns the string value of the letter
+    --!
+    --! @return String
     getLetter(): String = letter
+
+    --! equals doc
+    --! @brief Returns true if the string value of both letters is the same
+    --!
+    --! @return Boolean
     equals(l: Letter): Boolean = (getLetter() = l.getLetter())
     pre argIsValid: l <> null
 end -- Letter Class
 
 class TileBag
 operations
-    -- Calls a method in the Tile factory to create all the letters for the
-    -- match
-    --init()
-    -- Randomly picks a tile from the bag
-    --remove
+    --! init doc
+    --! @brief Fills the tile bag with the tiles to be used for the match
+    --!
+    --! Calls a method in the Tile factory to create all the letters for the
+    --! match
+    init()
+    -- #TODO Pre and Post
+
+    --! remove doc
+    --! @brief Randomly picks a tile from the bag
+    remove()
+    -- #TODO Pre and Post
 end -- TileBag Class
 
 class Word
@@ -1120,10 +1353,19 @@ attributes
     category: Category init: #NONE
     status: WordStatus init: #VALID
 operations
-    -- Returns a String that represents the word
+    --! getWord doc
+    --! @brief Returns a String that represents the word
+    --!
+    --! @return String
     getWord(): String = letters->iterate(l; ans: String = '' |
         ans + l.getLetter())
 
+    --! equals doc
+    --! @brief Returns true if the string values of both words is equal
+    --!        (ignoring the case of the characters)
+    --!
+    --! @param String ws The string to compare the string form of the word to
+    --! @return Boolean
     equals(ws: String): Boolean = getWord().equalsIgnoreCase(ws)
     pre argIsValid: ws <> null
 
@@ -1132,8 +1374,12 @@ end -- Word Class
 
 class Dictionary
 operations
-    -- Searches for the word that matches the arguement passed and returns it
-    -- returns null otherwise
+    --! lookup doc
+    --! @brief Searches for the word that matches the arguement passed and
+    --!        returns it, returns null otherwise
+    --!
+    --! @param String ws The word to be searched for in the dictionary
+    --! @return Word
     lookup(ws: String): Word = words->any(w | w.equals(ws))
     pre argIsValid: ws <> null
 
@@ -1149,7 +1395,14 @@ attributes
     status: MatchStatus init: #INPROGRESS
     score: Integer derived = updateSlider()
 operations
-    -- Creates a new match
+    --! init doc
+    --! @brief Initializes the match
+    --!
+    --! Sets all the attributes of the match and creates the board
+    --!
+    --! @param MatchType matchType The type of match to be created
+    --! @param Boolean matchTimed Whether the match is timed or not
+    --! @param Category cat The special category to be applied
     init(matchType: MatchType, matchTimed: Boolean, cat: Category)
     pre argsAreValid: matchType <> null and matchTimed <> null and
         (matchType = #RANKED implies matchTimed) and cat <> null
@@ -1157,7 +1410,10 @@ operations
         category = cat and status = #INPROGRESS and score = 0 and
         duration.getStart().equalsNow()
 
-    -- Updates the position of the slider
+    --! updateSlider doc
+    --! @brief Updates the position of the slider
+    --!
+    --! @return Integer
     updateSlider(): Integer =
     playHistory->iterate(p; ans: Integer = 0 |
         if playHistory->indexOf(p).mod(2) = 1 then
@@ -1167,15 +1423,30 @@ operations
         endif)
 
     --getters
-    --update(o: Observable)
 
-    -- Checks if the player is currently has the match open and creates a
-    -- notification if they don't or signals to the players that the match
-    -- is complete
-    --updateHelperPlay(o: Play)
+    --! update doc
+    --! @brief This is the method called by the observable to update the
+    --!        Observer
+    --!
+    --! @param Observable o The observable that called the method
+    update(o: Observable)
+    -- #TODO Pre and Post
 
+    --! updateHelperPlay doc
+    --!
+    --! Checks if the player is currently has the match open and creates a
+    --! notification if they don't or signals to the players that the match
+    --! is complete
+    --!
+    --! @param Play o The play that called the update method
+    updateHelperPlay(o: Play)
+    -- #TODO Pre and Post
+
+    --! executePass doc
+    --! @brief Creates a play with type pass
+    --!
+    --! @param Rack r The rack that triggered the Pass
     executePass(r: Rack)
-    -- Creates a play with type pass
     pre argIsValid: r <> null
     post playMade:
             let
@@ -1184,8 +1455,11 @@ operations
                 playHistory@pre->including(lp) = playHistory and
                 lp.oclIsNew()
 
+    --! executeQuit doc
+    --! @brief Creates a play with type quit
+    --!
+    --! @param Rack r The rack that triggered the Quit
     executeQuit(r: Rack)
-    -- Creates a play with type pass
     pre argIsValid: r <> null
     post playMade:
             let
@@ -1194,10 +1468,17 @@ operations
                 playHistory@pre->including(lp) = playHistory and
                 lp.oclIsNew()
 
+    --! executePlay doc
+    --! @brief Places the tiles on the board
+    --!
+    --! @param Rack r The rack that triggered the Play
+    --! @param Integer sRow The row where the main word of the play starts
+    --! @param Integer sCol The column where the main word of the play starts
+    --! @param PlayDirection dir The direction in which the main word is spelt
+    --! @param OrderedSet(Tile) tileSeq The set of tiles to be used to make
+    --!                                 the play
     executePlay(r: Rack, sRow: Integer, sCol: Integer, dir: PlayDirection,
     tileSeq: OrderedSet(Tile))
-    -- Places the tiles on the board, calculates the score and bonus of the
-    -- play
     pre playIsValid: playHelperIsPlayValid(sRow, sCol, dir, tileSeq->size())
     post playMade:
             let
@@ -1216,6 +1497,16 @@ operations
             )->includesAll(tileSeq)
         endif
 
+    --! playHelperAllTilesFit doc
+    --! @brief Returns true if all the tiles to be used will occupy a space in
+    --!        the row/column within the bounds of the start of the play and
+    --!        the end of the board
+    --!
+    --! @param Integer sRow The row where the main word of the play starts
+    --! @param Integer sCol The column where the main word of the play starts
+    --! @param PlayDirection dir The direction in which the main word is spelt
+    --! @param Integer tcnt The number of tiles to be placed
+    --! @return Boolean
     playHelperAllTilesFit(sRow: Integer, sCol: Integer, dir: PlayDirection,
     tcnt: Integer): Boolean =
         if dir = #HORIZONTAL then
@@ -1234,6 +1525,17 @@ operations
     pre argsAreValid: Sequence{1..15}->includesAll(Set{sRow, sCol, tcnt}) and
         dir <> null
 
+    --! playHelperPlayIntersects doc
+    --! @brief Returns true if the play intersects with a word on the board
+    --!
+    --! A play intersects with a word if there is an existing word
+    --! intersecting with the tiles placed
+    --!
+    --! @param Integer sRow The row where the main word of the play starts
+    --! @param Integer sCol The column where the main word of the play starts
+    --! @param PlayDirection dir The direction in which the main word is spelt
+    --! @param Integer tcnt The number of tiles to be placed
+    --! @return Boolean
     playHelperPlayIntersects(sRow: Integer, sCol: Integer, dir: PlayDirection,
     tcnt: Integer): Boolean =
         if dir = #HORIZONTAL then
@@ -1254,6 +1556,13 @@ operations
     pre argsAreValid: Sequence{1..15}->includesAll(Set{sRow, sCol, tcnt}) and
         dir <> null
 
+    --! playHelperIsPlayValid doc
+    --! @brief Returns true if the play is valid
+    --!
+    --! A play is valid if all the tiles fit within the bounds of the play and
+    --! there is an existing word intersecting with the tiles placed
+    --!
+    --! @return Boolean
     playHelperIsPlayValid(sRow: Integer, sCol: Integer, dir: PlayDirection,
     tcnt: Integer): Boolean =
         playHelperAllTilesFit(sRow, sCol, dir, tcnt) and
@@ -1277,10 +1586,20 @@ class Leaderboard < Observer
 operations
     --getters
 
-    --update(o: Observable)
+    --! update doc
+    --! @brief This is the method called by the observable to update the
+    --!        Observer
+    --!
+    --! @param Observable o The observable that called the method
+    update(o: Observable)
+    -- #TODO Pre and Post
 
-    -- Updates the players' ranks once a ranked match is complete
-    --updateHelperMatch(o: Match)
+    --! updateHelperMatch doc
+    --! @brief Updates the players' ranks once a ranked match is complete
+    --!
+    --! @param Match o The match that called the method
+    updateHelperMatch(o: Match)
+    -- #TODO Pre and Post
 end -- Leaderboard Class
 
 associationclass Rank
@@ -1290,6 +1609,10 @@ between
 attributes
     placement: Integer
 operations
+    --! getRank doc
+    --! @brief Returns the rank as an integer
+    --!
+    --! @return Integer
     getRank(): Integer = placement
 end -- Rank Association Class
 
@@ -1453,6 +1776,7 @@ end -- End Mark Association
 
 constraints
 context Identifiable
+    -- #TODO update to not use allInstances
     -- Each item has a unique id
     inv uniqueIDs: Identifiable.allInstances->forAll(i1, i2 |
         i1 <> i2 implies i1.id <> i2.id)
@@ -1466,13 +1790,10 @@ context Identifiable
 context DateTime
     inv dateIsValid: isSelfValid()
 
+    -- #TODO update to not use allInstances
     -- There must only be one "today" in the system
-    -- #DOUBLE-CHECK
     inv onlyOneCurrentTime:
-        let
-            now = DateTime.allInstances.now->asSet()->excluding(null)
-        in (DateTime.allInstances->size() > 1 implies now->size() = 1) and
-            now->forAll(t | t.oclIsTypeOf(DateTime))
+        DateTime.allInstances.now->asSet()->excluding(null)->size() = 1
 -- End DateTime Constraints
 
 context Period
@@ -1481,6 +1802,7 @@ context Period
 -- End Period Constraints
 
 context Player
+    -- #TODO update to not use allInstances
     -- Each Player has a unique username
     inv uniqueUsernames: Player.allInstances->forAll(p1, p2 |
         p1 <> p2 implies p1.username <> p2.username)
@@ -1495,6 +1817,18 @@ context Player
                 prevM.duration.getStart().before(m.duration.getStart())
             )
     )
+
+    -- For each type of request, ther can only be one pending request between
+    -- each unique pair of players.
+    inv onlyOnePendingReqPerPlayerPair:
+        let
+            pending = sentReqs->select(req | req.status = #PENDING) +
+                rcvdReqs->select(req | req.status = #PENDING)
+        in pending->forAll(r1, r2 |
+            (r1 <> r2 and r1.type = r2.type) implies (
+                (r1.reqSender <> r2.reqSender and r1.reqRcvr <> r2.reqRcvr) or
+                (r1.reqSender <> r2.reqRcvr and r1.reqSender <> r2.reqRcvr))
+        )
 
     -- Blocked players can't be your friends
     inv notFriendAndBlocked:
@@ -1676,18 +2010,6 @@ context Request
     inv validAcceptedReq: status = #ACCEPTED implies
         (activePeriod <> null and activePeriod.getStart().after(sentDate) and
         activePeriod.getEnd() = null)
-
-    -- For each type of request, ther can only be one pending request between
-    -- each unique pair of players.
-    inv onlyOnePendingReqPerPlayerPair:
-        let
-            pending = Request.allInstances->select(req |
-                req.status = #PENDING)
-        in pending->forAll(r1, r2 |
-            (r1 <> r2 and r1.type = r2.type) implies (
-                (r1.reqSender <> r2.reqSender and r1.reqRcvr <> r2.reqRcvr) or
-                (r1.reqSender <> r2.reqRcvr and r1.reqSender <> r2.reqRcvr))
-        )
 -- End Request Constraints
 
 context MatchRequest
@@ -2080,9 +2402,8 @@ context Match
             )
 
     -- Checks that no matches last longer than 30 days
-    inv noIndefiniteMatches: not Match.allInstances->exists(m |
-        (not m.timed) and (m.status = #INPROGRESS) and
-        (m.duration.durationInDays() > 30))
+    inv untimedMatchesHaveValidDurations:
+        (not timed) implies duration.durationInDays() <= 30
 -- End Match Constraints
 
 context Leaderboard
