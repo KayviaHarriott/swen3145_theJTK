@@ -572,7 +572,7 @@ operations
     --
 end -- Role Class
 
-class Admin
+class Admin < Role
 attributes
     --
 operations
@@ -620,7 +620,7 @@ operations
     -- #TODO Pre and Post
 end -- Admin Class
 
-class Player < Observer
+class Player < Observer, Role
 attributes
     username: String
     email: String
@@ -862,7 +862,7 @@ statemachines
         playing [status = #PLAYING]
         banned: final [status = #BANNED]
     transitions
-        start -> offline
+        start -> offline {create}
 
         offline -> online {openApp()}
         offline -> banned
@@ -1059,7 +1059,7 @@ statemachines
         recinded: final [status = #RECINDED]
         lost: final [status = #LOST]
     transitions
-        start -> pending
+        start -> pending {create}
         pending -> accepted {accept()}
         pending -> rejected {reject()}
         pending -> lost {block()}
@@ -1584,7 +1584,7 @@ statemachines
         completed: final [status = #COMPLETE]
         abandoned: final [status = #ABANDONED]
     transitions
-        start -> inprogress
+        start -> inprogress {create}
         inprogress -> completed
         inprogress -> abandoned
     end
