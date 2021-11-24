@@ -41,7 +41,6 @@ enum PlayDirection {HORIZONTAL, VERTICAL}
 --!     - May need a letter factory to facilitate creating new letters for
 --!       words
 --!     - Need a tile factory to create tiles for each match
---!     - Update invariants that use allInstances
 --!
 --!     DESIGN PATTERN REFINEMENTS
 --!         Observer Pattern
@@ -99,6 +98,7 @@ operations
     --! @param Observable o The observable that called the method
     update(o: Observable)
     -- #TODO Pre and Post
+    pre argIsValid: o <> null
 end -- Observer Class
 
 abstract class Observable
@@ -558,6 +558,11 @@ operations
             getStart().getNow().differenceInDays(getStart())
         endif
 end -- Period Class
+
+class Scrumble
+operations
+    --
+end -- Scrumble Class
 
 class User < Identifiable
 operations
@@ -1317,6 +1322,18 @@ operations
     --!
     --! @return Integer
     getPoints(): Integer = points
+statemachines
+    psm placementState
+    states
+        start: initial
+        bag [tileBag <> null and rack = null and slot = null]
+        rack [tileBag = null and rack <> null and slot = null]
+        board: final [tileBag = null and rack = null and slot <> null]
+    transitions
+        start -> bag {create}
+        bag -> rack
+        rack -> board
+    end
 end -- Tile Class
 
 class Letter
@@ -1631,12 +1648,6 @@ association Watches between
     Observable[*]
 end -- Watches Association
 
-association UserRole between
-    User[1]
-    Role[1]
-end -- UserRole Association
-
-
 association CurrentTime between
     DateTime[*]
     DateTime[1] role now
@@ -1646,6 +1657,33 @@ association PeriodInterval between
     Period[*]
     DateTime[0..2] role interval ordered
 end -- PeriodInterval Association
+
+
+association ScrumbleTimes between
+    Scrumble[1]
+    DateTime[*] role times
+end -- ScrumbleTimes Association
+
+association ScrumbleIDs between
+    Scrumble[1]
+    Identifiable[*] role ids
+end -- ScrumbleIDs Association
+
+association ScrumbleDict between
+    Scrumble[1]
+    Dictionary[1]
+end -- ScrumbleDict Association
+
+association ScrumbleLboard between
+    Scrumble[1]
+    Leaderboard[1]
+end -- ScrumbleLboard Association
+
+
+association UserRole between
+    User[1]
+    Role[1]
+end -- UserRole Association
 
 association OnlyLboard between
     Leaderboard[1] role lboard1
@@ -1783,12 +1821,22 @@ end -- End Mark Association
 ----------------------------------Constraints---------------------------------
 
 constraints
-context Identifiable
-    -- #TODO update to not use allInstances
+context Scrumble
     -- Each item has a unique id
-    inv uniqueIDs: Identifiable.allInstances->forAll(i1, i2 |
-        i1 <> i2 implies i1.id <> i2.id)
--- End Identifiable Constraints
+    inv uniqueIDs: ids.isUnique(i | i.id)
+        --ids->forAll(i1, i2 | i1 <> i2 implies i1.id <> i2.id)
+
+    -- There must only be one "today" in the system
+    inv onlyOneCurrentTime:
+        times.now->asSet()->excluding(null)->size() = 1
+
+    -- Each Player has a unique username
+    inv uniqueUsernames: ids
+        ->select(i | i.oclIsTypeOf(User))
+        ->collect(u | u.oclAsType(User).role)
+        ->select(r | r.oclIsTypeOf(Player))
+        ->isUnique(p | p.oclAsType(Player).username)
+-- End Scrumble Constraints
 
 --context Observer
 --    -- Objects cannot observe themselves
@@ -1797,11 +1845,6 @@ context Identifiable
 
 context DateTime
     inv dateIsValid: isSelfValid()
-
-    -- #TODO update to not use allInstances
-    -- There must only be one "today" in the system
-    inv onlyOneCurrentTime:
-        DateTime.allInstances.now->asSet()->excluding(null)->size() = 1
 -- End DateTime Constraints
 
 context Period
@@ -1810,11 +1853,6 @@ context Period
 -- End Period Constraints
 
 context Player
-    -- #TODO update to not use allInstances
-    -- Each Player has a unique username
-    inv uniqueUsernames: Player.allInstances->forAll(p1, p2 |
-        p1 <> p2 implies p1.username <> p2.username)
-
     -- Matches must be ordered
     inv matchesAreOrdered: matchHistory->forAll(m |
         let
@@ -2269,9 +2307,6 @@ context Letter
 -- End Letter Constraints
 
 context Dictionary
-    -- Only one dictionary for the lifecycle of the system
-    inv onlyOneDictionaryInstance: Dictionary.allInstances->size() <= 1
-
     -- No duplicate words
     inv uniqueWords: words->forAll(w1, w2 |
             Set{w1.status, w2.status}->excludes(#DEPRECATED) and
@@ -2415,9 +2450,6 @@ context Match
 -- End Match Constraints
 
 context Leaderboard
-    -- Only one Leaderboard for the lifetime of the system
-    inv onlyOneLeaderboardInstance: Leaderboard.allInstances->size() <= 1
-
     -- All ranks are ordered
     inv ranksAreAccurateAndOrdered:
         rank->forAll(r |
