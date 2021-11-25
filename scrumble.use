@@ -2,10 +2,16 @@
 --! @authors: Jason Hunter, Kayvia Harriott, Tashna-Gail Williams
 --! Created on: 2021-10-11
 --! @version: 0.4.9
---! Last Updated: 2021-11-16 00:28:46
+--! Last Updated: 2021-11-24 17:01:53
 ------------------------------------------------------------------------------
 
 model scrumble
+
+------------------------------------------------------------------------------
+-- Enumerations
+------------------------------------------------------------------------------
+
+enum Action {a, really, long, list, of, permissions}
 
 enum BlockStatus {BLOCKED, UNBLOCKED}
 enum ChatStatus {OPEN, CLOSED}
@@ -41,6 +47,22 @@ enum PlayDirection {HORIZONTAL, VERTICAL}
 --!     - May need a letter factory to facilitate creating new letters for
 --!       words
 --!     - Need a tile factory to create tiles for each match
+--!     - Invariants for checking the active period based on how a request was
+--!       addressed
+--!     - builder class to create matches and a match factory that is
+--!       associated with it (interface with the factory to have it make
+--!       games. the builder specifies the different configurations)
+--!     - Maybe make queue observable
+--!     - Add a permissions class and link Requests, Block and Role to it.
+--!       Each of them links to a collection of permissions
+--!     - Update invariants to check the friends role of a player instead of
+--!       searching for accepted requests like we do now. The constraints
+--!       would likely be affected by the permissions granted now that we're
+--!       fixing our ACLs
+--!     - Add invariants, pre and post conditions to check that the friends
+--!       role of a player is properly updated when friend requests are
+--!       accepted or recinded as well as the permissions granted are updated
+--!       accordingly
 --!
 --!     DESIGN PATTERN REFINEMENTS
 --!         Observer Pattern
@@ -77,12 +99,30 @@ enum PlayDirection {HORIZONTAL, VERTICAL}
 --!                - Player observes report so report may notify a player when
 --!                  it's status changes
 --!
---!         Singleton Pattern
---!             1 to one associations of the class with itself
+--!         Builder Pattern
+--!             to be researched
 --!
 --!     ACL REFINEMENTS
---!         Role-Based ACL for Admins and users.
---!             Are we going to allow admins to play matches as well?
+--!         - Permissions class - the class holds a value representing what
+--!               action is allowed and the relevant objects are associated
+--!               with a set of permissions
+--!
+--!         - Actions enum - lists out all the capabilities of any user of the
+--!               system
+--!
+--!         - Role-Based ACL for Admins and users:
+--!             - Role is associated with a set of permissions
+--!             - Are we going to allow admins to play matches as well?
+--!
+--!         - Discressionary ACL for Player interactions:
+--!             - Role is associated with a set of permissions
+--!
+
+------------------------------------------------------------------------------
+-- Classes
+------------------------------------------------------------------------------
+
+-------------------------------Abstract Classes-------------------------------
 
 abstract class Identifiable
 attributes
@@ -103,6 +143,8 @@ end -- Observer Class
 
 abstract class Observable
 end -- Observable Class
+
+-----------------------------------Datatypes----------------------------------
 
 class DateTime
 attributes
@@ -559,6 +601,8 @@ operations
         endif
 end -- Period Class
 
+---------------------------------Domain Level---------------------------------
+
 class Scrumble
 operations
     --
@@ -570,12 +614,23 @@ operations
     -- (Players and admins)
 end -- User Class
 
+--------------------------------------ACL-------------------------------------
+
 class Role
 attributes
     --
 operations
     --
 end -- Role Class
+
+class Permission
+attributes
+    action: Action
+operations
+    --getter
+end -- Permission Class
+
+--------------------------------Administration--------------------------------
 
 class Admin < Role
 attributes
@@ -624,6 +679,8 @@ operations
     -- Sets their status to banned
     -- #TODO Pre and Post
 end -- Admin Class
+
+------------------------------Player Interactions-----------------------------
 
 class Player < Observer, Role
 attributes
@@ -768,11 +825,43 @@ operations
     --!
     --! @param Player p The player to be blocked
     blockPlayer(p: Player)
+    --begin
+    --    if (blocked[player]->excludes(p)) then
+    --        new Block() between (self, p);
+    --    end;
+
+    --    b := block->any(b | b.blocked = p);
+    --    b.block();
+    --end
+
     pre playerIsOnline: status = #ONLINE
     pre argIsValid: p <> null
+    pre playerIsNotBlocked:
+        let
+            b = block[player]->any(b | b.blocked = p)
+        in b = null or b.status = #UNBLOCKED
     post playerBlocked: block[player]->exists(b |
-        b.blocked->asSet() = Set{p} and b.status = #BLOCKED and
+        b.blocked = p and b.status = #BLOCKED and
         b.date.equalsNow())
+
+    --! unblockPlayer doc
+    --! @brief Unblocks a player
+    --!
+    --! @param Player p The player to be unblocked
+    unblockPlayer(p: Player)
+    --begin
+    --    b := block->any(b | b.blocked = p);
+    --    b.unblock();
+    --end
+
+    pre playerIsOnline: status = #ONLINE
+    pre argIsValid: p <> null
+    pre playerIsBlocked:
+        let
+            b = block[player]->any(b | b.blocked = p)
+        in b <> null and b.status = #BLOCKED
+    post playerUnblocked: block[player]->exists(b |
+        b.blocked = p and b.status = #UNBLOCKED)
 
     --! reportBug doc
     --! @brief Creates a bug report
@@ -905,7 +994,13 @@ operations
     --! view doc
     --! @brief Sets the message status to SEEN
     view()
-    begin self.status := #SEEN; end
+    begin
+        self.status := #SEEN;
+        self.seenDate := new DateTime();
+        insert (self.seenDate, self.sentDate.now) into CurrentTime;
+        self.seenDate.setToNow();
+    end
+
     pre msgUnseen: status = #UNSEEN
     post statusUpdated: status = #SEEN
 statemachines
@@ -926,7 +1021,13 @@ operations
     --! dismiss doc
     --! @brief Marks the notification as dismissed
     dismiss()
+    begin
+        self.dismissed := true;
+    end
+
     -- #TODO Pre and Post
+    --pre :
+    --post :
 
     --! gotoAndDismiss doc
     --! @brief Opens the app to the relevant view then dismisses the
@@ -982,11 +1083,18 @@ operations
             newMsg.sentDate.equalsNow()
 
     --! view doc
-    --! @brief Marks all the newest received messages as seen and dismisses
+    --! @brief Marks all the newest received messages as seen and dismissed
     --!        any linked notifications that have not been dismissed
     --!
     --! @param Player p The player trying to view the messages
     view(p: Player)
+    --begin
+    --    msgs := messages->select(m | m.status = #UNSEEN and m.msgSender <> p);
+    --    for m in msgs do
+    --        m.view();
+    --    end;
+    --end
+
     pre isOpen: chatState->one(cs |
         cs.participants->includesAll(Set{p}) and cs.status = #OPEN)
     pre argIsValid: p <> null
@@ -1030,9 +1138,22 @@ operations
     --! accept doc
     --! @brief Mark the request as accepted
     accept()
-    begin self.status := #ACCEPTED; end
+    begin
+        declare d: DateTime;
+        self.status := #ACCEPTED;
+
+        d := new DateTime();
+        insert (d, self.sentDate.now) into CurrentTime;
+        d.setToNow();
+
+        self.activePeriod := new Period();
+        self.activePeriod.addStart(d);
+    end
+
     pre isPending: status = #PENDING
     post statusUpdated: status = #ACCEPTED
+    post periodActivated: activePeriod.getStart().equalsNow() and
+        activePeriod.getEnd() = null
 
     --! reject doc
     --! @brief Mark the request as rejected
@@ -1040,13 +1161,25 @@ operations
     begin self.status := #REJECTED; end
     pre isPending: status = #PENDING
     post statusUpdated: status = #REJECTED
+    post notActivated: activePeriod = null
 
     --! recind doc
     --! @brief Mark the request as recinded
     recind()
-    begin self.status := #RECINDED; end
+    begin
+        declare d: DateTime;
+        self.status := #RECINDED;
+
+        d := new DateTime();
+        insert (d, self.sentDate.now) into CurrentTime;
+        d.setToNow();
+
+        self.activePeriod.addEnd(d);
+    end
+
     pre isAccepted: status = #ACCEPTED
     post statusUpdated: status = #RECINDED
+    post periodDeactivated: activePeriod.getEnd().equalsNow()
 
     --! block doc
     --! @brief Mark the request as lost
@@ -1054,6 +1187,7 @@ operations
     begin self.status := #LOST; end
     pre isPending: status = #PENDING
     post statusUpdated: status = #LOST
+    post notActivated: activePeriod = null
 statemachines
     psm requestStates
     states
@@ -1096,11 +1230,23 @@ operations
     --! block doc
     --! @brief Mark a player as blocked
     block()
+    begin
+        self.status := #BLOCKED;
+        self.date := new DateTime();
+        --insert (self.date, now) into CurrentTime;
+        self.date.setToNow();
+    end
+
     -- #TODO Pre and Post
+    --pre :
+    --post :
 
     --! unblock doc
     --! @brief Mark a player as unblocked
     unblock()
+    begin self.status := #UNBLOCKED; end
+    --pre :
+    --post :
     -- #TODO Pre and Post
 end -- Block Association Class
 
@@ -1202,7 +1348,7 @@ operations
     post: true
 end -- Rack Association Class
 
-class Play < Identifiable, Observable
+class Play < Identifiable
 attributes
     type: PlayType
     -- The main word is the word in the same row/column where the tiles were
@@ -1409,7 +1555,7 @@ operations
     --protected setters
 end -- Dictionary Class
 
-class Match < Identifiable, Observer, Observable
+class Match < Identifiable, Observable
 attributes
     type: MatchType
     timed: Boolean
@@ -1641,7 +1787,11 @@ operations
     getRank(): Integer = placement
 end -- Rank Association Class
 
----------------------------------Associations---------------------------------
+------------------------------------------------------------------------------
+-- Associations
+------------------------------------------------------------------------------
+
+-----------------------------Pattern and Datatype-----------------------------
 
 association Watches between
     Observer[*]
@@ -1658,16 +1808,27 @@ association PeriodInterval between
     DateTime[0..2] role interval ordered
 end -- PeriodInterval Association
 
+association OnlyLboard between
+    Leaderboard[1] role lboard1
+    Leaderboard[1] role lboard2
+end -- OnlyLboard Association
 
-association ScrumbleTimes between
-    Scrumble[1]
-    DateTime[*] role times
-end -- ScrumbleTimes Association
+association OnlyDict between
+    Dictionary[1] role dict1
+    Dictionary[1] role dict2
+end -- OnlyDict Association
 
-association ScrumbleIDs between
+---------------------------------Domain Level---------------------------------
+
+association ScrumbleUsers between
     Scrumble[1]
-    Identifiable[*] role ids
-end -- ScrumbleIDs Association
+    User[*] role users
+end -- ScrumbleUsers Association
+
+association ScrumbleMatches between
+    Scrumble[1]
+    Match[*] role matches
+end -- ScrumbleMatches Association
 
 association ScrumbleDict between
     Scrumble[1]
@@ -1679,23 +1840,19 @@ association ScrumbleLboard between
     Leaderboard[1]
 end -- ScrumbleLboard Association
 
+--------------------------------------ACL-------------------------------------
 
 association UserRole between
     User[1]
     Role[1]
 end -- UserRole Association
 
-association OnlyLboard between
-    Leaderboard[1] role lboard1
-    Leaderboard[1] role lboard2
-end -- OnlyLboard Association
+association RolePerms between
+    Role[1]
+    Permission[*] role permissions
+end -- RolePerms Association
 
-association OnlyDict between
-    Dictionary[1] role dict1
-    Dictionary[1] role dict2
-end -- OnlyDict Association
-
-
+------------------------------Player Interactions-----------------------------
 
 association Signal between
     Notification[*] role notifs
@@ -1706,6 +1863,11 @@ association Notify between
     Notification[*] role notifs
     Player[1]
 end -- Signals Association
+
+association FriendList between
+    Player[1] role friend
+    Player[*] role friends
+end -- Friend Association
 
 composition PlayerChat between
     Chat[1] role chat
@@ -1747,6 +1909,7 @@ association Reported between
     Player[0..1] role reported --directed
 end -- Reported Association
 
+-------------------------------------Game-------------------------------------
 
 association MatchGameBoard between
     Match[1]
@@ -1818,39 +1981,49 @@ association Mark between
     Letter[1]
 end -- End Mark Association
 
-----------------------------------Constraints---------------------------------
+------------------------------------------------------------------------------
+-- Constraints
+------------------------------------------------------------------------------
 
 constraints
+---------------------------------Domain Level---------------------------------
+
 context Scrumble
-    -- Each item has a unique id
-    inv uniqueIDs: ids.isUnique(i | i.id)
-        --ids->forAll(i1, i2 | i1 <> i2 implies i1.id <> i2.id)
-
-    -- There must only be one "today" in the system
-    inv onlyOneCurrentTime:
-        times.now->asSet()->excluding(null)->size() = 1
-
     -- Each Player has a unique username
-    inv uniqueUsernames: ids
-        ->select(i | i.oclIsTypeOf(User))
-        ->collect(u | u.oclAsType(User).role)
+    inv uniqueUsernames: users.role
         ->select(r | r.oclIsTypeOf(Player))
         ->isUnique(p | p.oclAsType(Player).username)
 -- End Scrumble Constraints
+
+-------------------------------Abstract Classes-------------------------------
+
+context Identifiable
+    -- Each item has a unique id
+    inv uniqueIDs: Identifiable.allInstances.isUnique(i | i.id)
+        --ids->forAll(i1, i2 | i1 <> i2 implies i1.id <> i2.id)
+-- End Identifiable Constraints
 
 --context Observer
 --    -- Objects cannot observe themselves
 --    inv noSelfObserving: observable->excludes(self)
 ---- End Observer Constraints
 
+-----------------------------------Datatype-----------------------------------
+
 context DateTime
     inv dateIsValid: isSelfValid()
+
+    -- There must only be one "today" in the system
+    inv onlyOneCurrentTime:
+        DateTime.allInstances.now->asSet()->excluding(null)->size() = 1
 -- End DateTime Constraints
 
 context Period
     -- All Periods are valid
     inv allPeriodsAreValid: isSelfValid()
 -- End Period Constraints
+
+------------------------------Player Interactions-----------------------------
 
 context Player
     -- Matches must be ordered
@@ -2089,6 +2262,7 @@ context Report
         endif
 -- End Report Constraints
 
+-------------------------------------Game-------------------------------------
 
 context Join
     -- Only unranked matches may be untimed
