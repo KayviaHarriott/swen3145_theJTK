@@ -1229,7 +1229,10 @@ attributes
 operations
     --! block doc
     --! @brief Mark a player as blocked
-    block()
+    --! 
+    --! @param Player p1 The player that is blocking another player
+    --! @param Player p2 The player that will be blocked by a player
+    block(p1: Player, p2: Player)
     begin
         self.status := #BLOCKED;
         self.date := new DateTime();
@@ -1237,17 +1240,30 @@ operations
         self.date.setToNow();
     end
 
+    pre playersExists: p1 <> null and p2 <> null
+    pre checkLink: not blocked[p2] -> includes(p1)
+
+    post changeBlockPlayerStatus: status = #BLOCKED
+    post changeDate: self.date.setToNow();
+
     -- #TODO Pre and Post
     --pre :
     --post :
 
     --! unblock doc
     --! @brief Mark a player as unblocked
-    unblock()
-    begin self.status := #UNBLOCKED; end
-    --pre :
-    --post :
+    unblock(p1: Player, p2: Player)
+    begin 
+        self.status := #UNBLOCKED;
+        --self.date.setToNow(); --should this be here to capture unblocked date?
+    end
+
+    pre checkLink: blocked[p2] -> includes(p1)
+    post changeStatus: status = #UNBLOCKED
+    post changeDate: self.date.setToNow();
+
     -- #TODO Pre and Post
+
 end -- Block Association Class
 
 class Report < Observable
