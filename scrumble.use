@@ -825,6 +825,22 @@ operations
     --!
     --! @param Player p The player to be blocked
     blockPlayer(p: Player)
+    begin
+        --new Block() between(p, self);
+        declare b: Block, d: DateTime;
+        b := new Block() between(p, self);
+        d := new DateTime();
+
+        b.date := d;
+        --b.changeBlockDate(d);
+        --change date to now, not working
+        --d.setToNow();
+
+    end
+    pre playerIsOnline: status = #ONLINE
+    pre argIsValid: p <> null
+
+    --not sure about this -kayvia
     --begin
     --    if (blocked[player]->excludes(p)) then
     --        new Block() between (self, p);
@@ -834,34 +850,36 @@ operations
     --    b.block();
     --end
 
-    pre playerIsOnline: status = #ONLINE
-    pre argIsValid: p <> null
-    pre playerIsNotBlocked:
-        let
-            b = block[player]->any(b | b.blocked = p)
-        in b = null or b.status = #UNBLOCKED
-    post playerBlocked: block[player]->exists(b |
-        b.blocked = p and b.status = #BLOCKED and
-        b.date.equalsNow())
 
     --! unblockPlayer doc
     --! @brief Unblocks a player
     --!
     --! @param Player p The player to be unblocked
-    unblockPlayer(p: Player)
+    unblockPlayer(p: Player) --kayvia edited 1.
+    begin
+        delete (p,self) from Block;
+        --declare d: Block;
+        --d := Block() between(p, self);
+    end
+
+    pre argIsValid: p <> null
+    --post playerBlocked: block[player]->exists(b|
+    --    b.blocked->asSet() = Set{p} and b.status = #BLOCKED and
+    --    b.date.equalsNow())
+
+    --not sure what this was for
     --begin
     --    b := block->any(b | b.blocked = p);
     --    b.unblock();
     --end
 
-    pre playerIsOnline: status = #ONLINE
-    pre argIsValid: p <> null
-    pre playerIsBlocked:
-        let
-            b = block[player]->any(b | b.blocked = p)
-        in b <> null and b.status = #BLOCKED
-    post playerUnblocked: block[player]->exists(b |
-        b.blocked = p and b.status = #UNBLOCKED)
+    --check if player already blocked, not working
+    --pre playerIsBlocked:
+    --    let
+    --        b = block[player]->any(b | b.blocked = p)
+    --    in b <> null and b.status = #BLOCKED    
+    
+
 
     --! reportBug doc
     --! @brief Creates a bug report
@@ -1234,37 +1252,23 @@ operations
     --! @param Player p2 The player that will be blocked by a player
     block(p1: Player, p2: Player)
     begin
-        self.status := #BLOCKED;
-        self.date := new DateTime();
-        --insert (self.date, now) into CurrentTime;
-        self.date.setToNow();
     end
+    post: true
+    pre: true
 
-    pre playersExists: p1 <> null and p2 <> null
-    pre checkLink: not blocked[p2] -> includes(p1)
+    --! changeBlockDate doc
+    --! @brief Mark a player as blocked
+    --! 
+    --! @param Player p1 The player that is blocking another player
+    --! @param Player p2 The player that will be blocked by a player
 
-    post changeBlockPlayerStatus: status = #BLOCKED
-    post changeDate: self.date.setToNow();
 
-    -- #TODO Pre and Post
-    --pre :
-    --post :
 
-    --! unblock doc
-    --! @brief Mark a player as unblocked
-    unblock(p1: Player, p2: Player)
-    begin 
-        self.status := #UNBLOCKED;
-        --self.date.setToNow(); --should this be here to capture unblocked date?
-    end
 
-    pre checkLink: blocked[p2] -> includes(p1)
-    post changeStatus: status = #UNBLOCKED
-    post changeDate: self.date.setToNow();
 
-    -- #TODO Pre and Post
 
 end -- Block Association Class
+
 
 class Report < Observable
 attributes
