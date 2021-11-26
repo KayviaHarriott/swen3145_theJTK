@@ -17,7 +17,8 @@ enum BlockStatus {BLOCKED, UNBLOCKED}
 enum ChatStatus {OPEN, CLOSED}
 enum MatchStatus {INPROGRESS, COMPLETE, ABANDONED}
 enum MessageStatus {UNSEEN, SEEN}
-enum PlayerStatus {ONLINE, OFFLINE, AWAY, PLAYING, BANNED}
+enum PlayerStatus {ONLINE, OFFLINE, AWAY, PLAYING}
+enum AccountStatus {BANNED, UNBANNED}
 enum ReportStatus {UNRESOLVED, UNDER_REVIEW, RESOLVED}
 enum RequestStatus {PENDING, ACCEPTED, REJECTED, RECINDED, LOST}
 enum WordStatus {VALID, DEPRECATED}
@@ -654,12 +655,33 @@ operations
     pre isUnderReview: r.getStatus() = #UNDER_REVIEW
     post mutationSuccess: r.getStatus() = #RESOLVED
 
-    --! addWprd doc
+    --! addWord doc
     --! @brief Creates a new word and adds it to the dictionary
     --!
     --! @param Type <var> Description
     --! @param Type <var> Description
-    addWord(w: Sequence(Letter), cat: Category)
+    --addWord(w: Sequence(Letter), cat: Category)
+    --kayvia edit 6
+    addWord(l: Sequence(Letter), c: Category, d : Dictionary)
+    begin
+        declare w: Word;
+        --let word be the sequence of letters, operation createWord suggested
+        insert(d,w) into ValidWord;
+        w.category := c;
+        w.status := #VALID;
+        --^^dont think this is needed because of word status init
+
+    
+    --insert (self.seenDate, self.sentDate.now) into CurrentTime;
+    --    declare b: Block, d: DateTime;
+    --    b := new Block() between(p, self);
+    --    d := new DateTime();
+        
+        
+    --    b.date := d;
+    end
+    pre : true --check that dictionary doesn't have word in it
+    post : true -- check that category was assigned to word
     -- #TODO Pre and Post
 
     --! depricatedWord doc
@@ -669,15 +691,29 @@ operations
     --! @return type
     --! @throws conditon
     deprecateWord(w: Word)
+    begin
+
+    end
+    pre : true
+    post : true
     -- #TODO Pre and Post
+
 
     --! banPlayer doc
     --! @brief Bans a player
     --!
     --! @param Player p Player to be banned
+    --kayvia edit 6
     banPlayer(p: Player)
-    -- Sets their status to banned
+    -- Sets their status to banned    
+    begin
+        p.accountStatus := #BANNED
+    end
+    pre checkPlayerStatusUnbanned: true
+    post checkPlayerStatusBanned: true
     -- #TODO Pre and Post
+
+
 end -- Admin Class
 
 ------------------------------Player Interactions-----------------------------
@@ -690,6 +726,7 @@ attributes
     score: Integer init: 500
     status: PlayerStatus init: #OFFLINE
     state: ProfileState init: #PRIVATE
+    accountStatus: AccountStatus init: #UNBANNED
 operations
     --getters (we'll have to restrict what may be obtained in the method I
     -- think)
@@ -829,12 +866,12 @@ operations
         --new Block() between(p, self);
         declare b: Block, d: DateTime;
         b := new Block() between(p, self);
-        d := new DateTime();
-
+        d := new DateTime();    
         b.date := d;
+        --d.setToNow();
         --b.changeBlockDate(d);
         --change date to now, not working
-        --d.setToNow();
+        --
 
     end
     pre playerIsOnline: status = #ONLINE
@@ -939,12 +976,37 @@ operations
 
     -- We don't have state tracking for what match is open or closed yet
     -- Opens the specified match
-    --openMatch(m: Match)
+
+    --! openMatch doc
+    --! @brief Opens the specified match
+    --!
+    --! @param Match m The match to be opened
+    openMatch(m: Match)
+    begin
+
+    end
+    pre: true
+    post: true
     -- #TODO Pre and Post
 
+    --! closeMatch doc
+    --! @brief Closes the specified match
+    --!
+    --! @param Match m The match to be closed
     -- We don't have state tracking for what match is open or closed yet
     -- Closes the specified match
-    --closeMatch(m: Match)
+    --kayvia edit 3
+    --closeMatch(m: Match) 
+    closeMatch(p: Player)
+    begin
+        declare m: Match, d: DateTime;
+        
+        
+        --delete (p,self) from Block;
+        --declare d: Block;
+    end
+    pre: true
+    post: true
     -- #TODO Pre and Post
 
     --! openApp doc
@@ -1042,7 +1104,9 @@ operations
     begin
         self.dismissed := true;
     end
-
+    --kayvia edit 4
+    pre checkNotDismissed: self.dismissed <> true
+    post isDismissed: self.dismissed = true
     -- #TODO Pre and Post
     --pre :
     --post :
@@ -1051,26 +1115,36 @@ operations
     --! @brief Opens the app to the relevant view then dismisses the
     --!        notification
     gotoAndDismiss()
+    pre : true
+    post : true
     -- #TODO Pre and Post
 
     --! gotoChatHelper doc
     --! @brief gotoAndDismiss helper for chat event notifications
     gotoChatHelper()
+    pre : true
+    post : true    
     -- #TODO Pre and Post
 
     --! gotoMatchHelper doc
     --! @brief gotoAndDismiss helper for match event notifications
     gotoMatchHelper()
+    pre : true
+    post : true   
     -- #TODO Pre and Post
 
     --! gotoRequestHelper doc
     --! @brief gotoAndDismiss helper for request event notifications
     gotoRequestHelper()
+    pre : true
+    post : true   
     -- #TODO Pre and Post
 
     --! gotoReportHelper doc
     --! @brief gotoAndDismiss helper for report event notifications
     gotoReportHelper()
+    pre : true
+    post : true    
     -- #TODO Pre and Post
 statemachines
     psm notificationStates
@@ -1250,11 +1324,13 @@ operations
     --! 
     --! @param Player p1 The player that is blocking another player
     --! @param Player p2 The player that will be blocked by a player
-    block(p1: Player, p2: Player)
+    --kayvia edit 5
+    block(p: Player)
     begin
+        --self.status = #BLOCKED; --is this needed if default is Blocked?
     end
     post: true
-    pre: true
+    pre: self.status = #UNBLOCKED
 
     --! changeBlockDate doc
     --! @brief Mark a player as blocked
@@ -1557,6 +1633,14 @@ operations
     --! @return Boolean
     equals(ws: String): Boolean = getWord().equalsIgnoreCase(ws)
     pre argIsValid: ws <> null
+
+    --! createWord doc
+    --! @brief Creates a word using letters
+    --!
+    --! @return 
+    --createWord()
+
+
 
     --protected setters
 end -- Word Class

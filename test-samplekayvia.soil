@@ -18,4 +18,4 @@ reset
 
 
 !p1.blockPlayer(p2)
-!p1.unblockPlayer(p2)
+--!p1.unblockPlayer(p2)
