@@ -2,7 +2,7 @@
 --! @authors: Jason Hunter, Kayvia Harriott, Tashna-Gail Williams
 --! Created on: 2021-10-11
 --! @version: 0.4.9
---! Last Updated: 2021-11-24 17:01:53
+--! Last Updated: 2021-11-29 03:01:00
 ------------------------------------------------------------------------------
 
 model scrumble
@@ -44,25 +44,11 @@ enum PlayDirection {HORIZONTAL, VERTICAL}
 --!       a queue for each type of match
 --!     - Figure out how to manage adding and removing words since you
 --!       wouldn't want changes to affect past games
---!     - May need a letter factory to facilitate creating new letters for
---!       words
---!     - Need a tile factory to create tiles for each match
 --!     - Invariants for checking the active period based on how a request was
 --!       addressed
---!     - builder class to create matches and a match factory that is
---!       associated with it (interface with the factory to have it make
---!       games. the builder specifies the different configurations)
---!     - Maybe make queue observable
---!     - Add a permissions class and link Requests, Block and Role to it.
---!       Each of them links to a collection of permissions
---!     - Update invariants to check the friends role of a player instead of
---!       searching for accepted requests like we do now. The constraints
---!       would likely be affected by the permissions granted now that we're
---!       fixing our ACLs
---!     - Add invariants, pre and post conditions to check that the friends
---!       role of a player is properly updated when friend requests are
---!       accepted or recinded as well as the permissions granted are updated
---!       accordingly
+--!     - Add pre and post conditions to check that the friends role of a
+--!       player is properly updated when friend requests are accepted or
+--!       recinded as well as the permissions granted are updated accordingly
 --!
 --!     DESIGN PATTERN REFINEMENTS
 --!         Observer Pattern
@@ -98,25 +84,6 @@ enum PlayDirection {HORIZONTAL, VERTICAL}
 --!                  new message is received
 --!                - Player observes report so report may notify a player when
 --!                  it's status changes
---!
---!         Builder Pattern
---!             to be researched
---!
---!     ACL REFINEMENTS
---!         - Permissions class - the class holds a value representing what
---!               action is allowed and the relevant objects are associated
---!               with a set of permissions
---!
---!         - Actions enum - lists out all the capabilities of any user of the
---!               system
---!
---!         - Role-Based ACL for Admins and users:
---!             - Role is associated with a set of permissions
---!             - Are we going to allow admins to play matches as well?
---!
---!         - Discressionary ACL for Player interactions:
---!             - Role is associated with a set of permissions
---!
 
 ------------------------------------------------------------------------------
 -- Classes
@@ -181,9 +148,10 @@ operations
     y: Integer, m: Integer, d: Integer,
     hr: Integer, min: Integer, sec: Integer) =
         let
-            years = EPOSH.y + (sec div TO_SEC.y),
-            leapDayCorrection = (years div 400) - (years div 100),
-            remDays = sec.mod(TO_SEC.y) div TO_SEC.d + leapDayCorrection,
+            yearsSince = sec div TO_SEC.y,
+            leapDayCorrection = (yearsSince div 400) - (yearsSince div 100),
+            years = EPOSH.y + yearsSince,
+            remDays = sec.mod(TO_SEC.y) div TO_SEC.d + leapDayCorrection + 1,
             daysOfEachMonth = if isLeapYear(years) then
                     Sequence{31, 29, 31, 30, 31, 30, 31, 31, 30, 31, 30, 31}
                 else
@@ -195,8 +163,9 @@ operations
                 else
                     ans
                 endif),
-            days = remDays - daysOfEachMonth
-                ->subSequence(1, months - 1)->sum(),
+            days = remDays - (if months > 1 then
+                    daysOfEachMonth->subSequence(1, months - 1)->sum()
+                else 0 endif),
             hours = sec.mod(TO_SEC.y).mod(TO_SEC.d) div TO_SEC.hr,
             minutes = sec.mod(TO_SEC.y).mod(TO_SEC.d)
                 .mod(TO_SEC.hr) div TO_SEC.min,
@@ -314,8 +283,33 @@ operations
 
     setToNow()
     begin self.initialise(self.now.year, self.now.month, self.now.day,
-        self.now.hour, self.now.minute, self.now.minute); end
+        self.now.hour, self.now.minute, self.now.second); end
     post mutationSuccess: self.equals(now)
+
+    -- Moves the time forward by the specified number of seconds
+    advance(sec: Integer)
+    begin
+        declare d: Tuple(y: Integer, m: Integer, d: Integer,
+            hr: Integer, min: Integer, sec: Integer);
+        d := self.makeHumanReadable(self.secondsSinceEposh + sec);
+
+        self.year := d.y;
+        self.month := d.m;
+        self.day := d.d;
+        self.hour := d.hr;
+        self.minute := d.min;
+        self.second := d.sec;
+    end
+
+    pre argIsValid: sec >= 0
+    post mutationSuccess: toSecondsSinceEposh(year, month, day,
+        hour, minute, second) = secondsSinceEposh
+
+    -- Moves the time forward by the specified number of days
+    advanceDays(d: Integer)
+    begin self.advance(self.TO_SEC.d * d) end
+    pre argIsValid: d >= 0
+    post noPost: true
 
     --------------------------------Predicates--------------------------------
 
@@ -1008,9 +1002,11 @@ operations
 statemachines
     psm msgStates
     states
-        unseen: initial [status = #UNSEEN]
+        start: initial
+        unseen [status = #UNSEEN]
         seen: final [status = #SEEN]
     transitions
+        start -> unseen {create}
         unseen -> seen {view()}
     end
 end -- Message Class
@@ -1074,6 +1070,31 @@ operations
     --! @param Player sender The player sending the message
     --! @param String msg The message to be sent
     createMessage(sender: Player, msg: String)
+    begin
+        declare
+            rcvr: Player,
+            now: DateTime,
+            m: Message;
+
+        rcvr := self.participants->any(p | p <> sender);
+        now := sender.user.scrumble.currentTime;
+
+        m := new Message();
+        insert (self, m) into PlayerChat;
+        insert (sender, m) into SentMessage;
+        insert (rcvr, m) into RecievedMessage;
+        m.id := sender.user.id + rcvr.user.id + 'msg' +
+            self.messages->select(m |
+                m.msgSender = sender)->size().toString();
+        m.message := msg;
+        m.sentDate := new DateTime();
+
+        insert (m.sentDate, now) into CurrentTime;
+        m.sentDate.setToNow();
+
+        --rcvr.update(self);
+    end
+
     pre isOpen: chatState.status->includes(#OPEN)
     pre argIsValid: sender <> null and msg.size() > 0
     post msgCreated:
@@ -1090,12 +1111,15 @@ operations
     --!
     --! @param Player p The player trying to view the messages
     view(p: Player)
-    --begin
-    --    msgs := messages->select(m | m.status = #UNSEEN and m.msgSender <> p);
-    --    for m in msgs do
-    --        m.view();
-    --    end;
-    --end
+    begin
+        declare msgs: OrderedSet(Message);
+        msgs := self.messages->select(m |
+            m.status = #UNSEEN and m.msgSender <> p);
+
+        for m in msgs do
+            m.view();
+        end;
+    end
 
     pre isOpen: chatState->one(cs |
         cs.participants->includesAll(Set{p}) and cs.status = #OPEN)
@@ -1282,15 +1306,31 @@ operations
     --!
     --! @return String
     getDesc(): String = description
+
+    --! open doc
+    --! @brief Marks the report as underReview
+    open()
+    begin self.status := #UNDER_REVIEW; end
+    pre reportUnresolved: status = #UNRESOLVED
+    post mutationSuccess: status = #UNDER_REVIEW
+
+    --! close doc
+    --! @brief Marks the report as resolved
+    close()
+    begin self.status := #RESOLVED; end
+    pre reportUnresolved: status = #UNDER_REVIEW
+    post mutationSuccess: status = #RESOLVED
 statemachines
     psm reportStates
     states
-        unresolved: initial [status = #UNRESOLVED]
+        start: initial
+        unresolved [status = #UNRESOLVED]
         underReview [status = #UNDER_REVIEW]
         resolved: final [status = #RESOLVED]
     transitions
-        unresolved -> underReview
-        underReview -> resolved
+        start -> unresolved {create}
+        unresolved -> underReview {open()}
+        underReview -> resolved {close()}
     end
 end -- Report Class
 
@@ -1324,8 +1364,6 @@ operations
     buildRankedMatch(p1: Player, p2: Player): Match
     begin
         declare
-            mp: Period,
-            matchStart: DateTime,
             m: Match,
             b: Board,
             s: Slot,
@@ -1339,24 +1377,23 @@ operations
             p1R: Rack,
             p2R: Rack;
 
-        new Period('mp');
-
-        new Match('m');
+        m := new Match();
         insert (self.scrumble, m) into ScrumbleMatches;
         insert (m, self.scrumble.dictionary) into WordCheck;
-        m.init(#RANKED, true, self.categoryGenerator(), mp);
+        m.init(#RANKED, true, self.categoryGenerator());
 
-        new Board('b');
+        b := new Board();
         insert (m, b) into MatchGameBoard;
         boardSize := Sequence{1..15};
         for r in boardSize do
             for c in boardSize do
-                s := new Slot('b1R' + r.toString() + 'C' + c.toString());
+                s := new Slot(m.id + 'bR' + r.toString()
+                    + 'C' + c.toString());
                 insert (b{r, c}, s) into Grid;
             end;
         end;
 
-        new TileBag('tb');
+        tb := new TileBag();
         insert (tb, b) into LetterOptions;
         lval := Sequence{'A', 'B', 'C', 'D', 'E', 'F', 'G', 'H', 'I', 'J',
             'K', 'L', 'M', 'N', 'O', 'P', 'Q', 'R', 'S', 'T', 'U', 'V', 'W',
@@ -1376,15 +1413,11 @@ operations
             end;
         end;
 
-        new Rack('p1R') between (p2, m);
+        p1R := new Rack() between (p2, m);
         p1R.drawTiles();
-        new Rack('p2R') between (p1, m);
+        p2R := new Rack() between (p1, m);
         p2R.drawTiles();
 
-        new DateTime('matchStart');
-        insert (matchStart, self.scrumble.currentTime) into CurrentTime;
-        matchStart.setToNow();
-        mp.addStart(matchStart);
         result := m;
     end
 
@@ -1405,8 +1438,6 @@ operations
     buildUnrankedTimedMatch(p1: Player, p2: Player): Match
     begin
         declare
-            mp: Period,
-            matchStart: DateTime,
             m: Match,
             b: Board,
             s: Slot,
@@ -1420,24 +1451,23 @@ operations
             p1R: Rack,
             p2R: Rack;
 
-        new Period('mp');
-
-        new Match('m');
+        m := new Match();
         insert (self.scrumble, m) into ScrumbleMatches;
         insert (m, self.scrumble.dictionary) into WordCheck;
-        m.init(#UNRANKED, true, self.categoryGenerator(), mp);
+        m.init(#UNRANKED, true, self.categoryGenerator());
 
-        new Board('b');
+        b := new Board();
         insert (m, b) into MatchGameBoard;
         boardSize := Sequence{1..15};
         for r in boardSize do
             for c in boardSize do
-                s := new Slot('b1R' + r.toString() + 'C' + c.toString());
+                s := new Slot(m.id + 'bR' + r.toString()
+                    + 'C' + c.toString());
                 insert (b{r, c}, s) into Grid;
             end;
         end;
 
-        new TileBag('tb');
+        tb := new TileBag();
         insert (tb, b) into LetterOptions;
         lval := Sequence{'A', 'B', 'C', 'D', 'E', 'F', 'G', 'H', 'I', 'J',
             'K', 'L', 'M', 'N', 'O', 'P', 'Q', 'R', 'S', 'T', 'U', 'V', 'W',
@@ -1457,15 +1487,11 @@ operations
             end;
         end;
 
-        new Rack('p1R') between (p2, m);
+        p1R := new Rack() between (p2, m);
         p1R.drawTiles();
-        new Rack('p2R') between (p1, m);
+        p2R := new Rack() between (p1, m);
         p2R.drawTiles();
 
-        new DateTime('matchStart');
-        insert (matchStart, self.scrumble.currentTime) into CurrentTime;
-        matchStart.setToNow();
-        mp.addStart(matchStart);
         result := m;
     end
 
@@ -1486,8 +1512,6 @@ operations
     buildUnrankedUntimedMatch(p1: Player, p2: Player): Match
     begin
         declare
-            mp: Period,
-            matchStart: DateTime,
             m: Match,
             b: Board,
             s: Slot,
@@ -1501,24 +1525,23 @@ operations
             p1R: Rack,
             p2R: Rack;
 
-        new Period('mp');
-
-        new Match('m');
+        m := new Match();
         insert (self.scrumble, m) into ScrumbleMatches;
         insert (m, self.scrumble.dictionary) into WordCheck;
-        m.init(#UNRANKED, false, self.categoryGenerator(), mp);
+        m.init(#UNRANKED, false, self.categoryGenerator());
 
-        new Board('b');
+        b := new Board();
         insert (m, b) into MatchGameBoard;
         boardSize := Sequence{1..15};
         for r in boardSize do
             for c in boardSize do
-                s := new Slot('b1R' + r.toString() + 'C' + c.toString());
+                s := new Slot(m.id + 'bR' + r.toString()
+                    + 'C' + c.toString());
                 insert (b{r, c}, s) into Grid;
             end;
         end;
 
-        new TileBag('tb');
+        tb := new TileBag();
         insert (tb, b) into LetterOptions;
         lval := Sequence{'A', 'B', 'C', 'D', 'E', 'F', 'G', 'H', 'I', 'J',
             'K', 'L', 'M', 'N', 'O', 'P', 'Q', 'R', 'S', 'T', 'U', 'V', 'W',
@@ -1538,15 +1561,11 @@ operations
             end;
         end;
 
-        new Rack('p1R') between (p2, m);
-        p1R.drawTiles();
-        new Rack('p2R') between (p1, m);
-        p2R.drawTiles();
+        p1R := new Rack() between (p2, m);
+        --p1R.drawTiles();
+        p2R := new Rack() between (p1, m);
+        --p2R.drawTiles();
 
-        new DateTime('matchStart');
-        insert (matchStart, self.scrumble.currentTime) into CurrentTime;
-        matchStart.setToNow();
-        mp.addStart(matchStart);
         result := m;
     end
 
@@ -1667,8 +1686,8 @@ operations
     init(sRow: Integer, sCol: Integer, dir: PlayDirection,
     tileSeq: OrderedSet(Tile), t: PlayType, pTime: DateTime)
     begin
-        --self.id = self.match.id + 'play' +
-        --    (self.match.playHistory->size() + 1).toString();
+        self.id := self.match.id + 'p' +
+            (self.match.playHistory->size() + 1).toString();
         self.type := #QUIT;
         self.startRow := sRow;
         self.startCol := sCol;
@@ -1793,18 +1812,18 @@ operations
     --!
     --! @return Integer
     getPoints(): Integer = points
-statemachines
-    psm placementState
-    states
-        start: initial
-        bag [tileBag <> null and rack = null and slot = null]
-        rack [tileBag = null and rack <> null and slot = null]
-        board: final [tileBag = null and rack = null and slot <> null]
-    transitions
-        start -> bag {create}
-        bag -> rack
-        rack -> board
-    end
+--statemachines
+--    psm placementState
+--    states
+--        start: initial
+--        bag [tileBag <> null and rack = null and slot = null]
+--        rack [tileBag = null and rack <> null and slot = null]
+--        board: final [tileBag = null and rack = null and slot <> null]
+--    transitions
+--        start -> bag
+--        bag -> rack
+--        rack -> board
+--    end
 end -- Tile Class
 
 class Letter
@@ -1827,14 +1846,6 @@ end -- Letter Class
 
 class TileBag
 operations
-    --! init doc
-    --! @brief Fills the tile bag with the tiles to be used for the match
-    --!
-    --! Calls a method in the Tile factory to create all the letters for the
-    --! match
-    init()
-    -- #TODO Pre and Post
-
     --! random doc
     --! @brief Generates pseudo random number based on the current time to be
     --!        used to pick the next tile to draw
@@ -1933,14 +1944,19 @@ operations
     --! @param MatchType matchType The type of match to be created
     --! @param Boolean matchTimed Whether the match is timed or not
     --! @param Category cat The special category to be applied
-    --! @param Period mp The period representing the duration of the match
-    init(matchType: MatchType, matchTimed: Boolean, cat: Category, mp: Period)
+    init(matchType: MatchType, matchTimed: Boolean, cat: Category)
     begin
+        declare d: DateTime;
         self.id := 'm' + (self.scrumble.matches->size() + 1).toString();
         self.type := matchType;
         self.timed := matchTimed;
-        self.duration := mp;
         self.category := cat;
+
+        d := new DateTime();
+        insert (d, self.scrumble.currentTime) into CurrentTime;
+        d.setToNow();
+        self.duration := new Period();
+        self.duration.addStart(d);
     end
 
     pre argsAreValid: matchType <> null and matchTimed <> null and
@@ -2108,7 +2124,7 @@ operations
                                     s = board.slots[r, c]
                                 in if ((not s.isEmpty()) and
                                     s.filledAt.before(pTime) and
-                                    ((sRow + bot.size()) = r)) then
+                                    ((sRow + bot.size() + 1) = r)) then
                                         bot + s.getTileString()
                                     else bot endif
                             )
@@ -2141,7 +2157,7 @@ operations
                                     s = board.slots[r, c]
                                 in if ((not s.isEmpty()) and
                                     s.filledAt.before(pTime) and
-                                    ((sCol + right.size()) = c)) then
+                                    ((sCol + right.size() + 1) = c)) then
                                         right + s.getTileString()
                                     else right endif
                             )
@@ -2167,11 +2183,11 @@ operations
             pTime: DateTime,
             i: Integer;
 
-        new DateTime('pTime');
+        pTime := new DateTime();
         insert (pTime, self.scrumble.currentTime) into CurrentTime;
         pTime.setToNow();
 
-        new Play('p');
+        p := new Play();
         insert (r, p) into Played;
         insert (self, p) into Plays;
         p.init(0, 0, null, null, #PASS, pTime);
@@ -2198,11 +2214,11 @@ operations
             pTime: DateTime,
             i: Integer;
 
-        new DateTime('pTime');
+        pTime := new DateTime();
         insert (pTime, self.scrumble.currentTime) into CurrentTime;
         pTime.setToNow();
 
-        new Play('p');
+        p := new Play();
         insert (r, p) into Played;
         insert (self, p) into Plays;
         p.init(0, 0, null, null, #QUIT, pTime);
@@ -2237,11 +2253,11 @@ operations
             words: Bag(String),
             s: Slot;
 
-        new DateTime('pTime');
+        pTime := new DateTime();
         insert (pTime, self.scrumble.currentTime) into CurrentTime;
         pTime.setToNow();
 
-        new Play('p');
+        p := new Play();
         insert (r, p) into Played;
         insert (self, p) into Plays;
         p.init(sRow, sCol, dir, tileSeq, #PASS, pTime);
@@ -2504,7 +2520,7 @@ statemachines
     transitions
         start -> inprogress {create}
         inprogress -> completed
-        inprogress -> abandoned
+        inprogress -> abandoned {executeQuit()}
     end
 end -- Match Class
 
@@ -2635,7 +2651,7 @@ association Notify between
 end -- Signals Association
 
 association FriendList between
-    Player[1] role friend
+    Player[0..1] role friend
     Player[*] role friends
 end -- Friend Association
 
@@ -2821,17 +2837,21 @@ context Player
                 (r1.reqSender <> r2.reqRcvr and r1.reqSender <> r2.reqRcvr))
         )
 
+    -- Once a friend request is accepted the players should be added to each
+    -- other's friends list
+    inv friendsListComplete:
+        let
+            frReqs = sentReqs->union(rcvdReqs)
+                ->select(req | req.type = #FRIEND and req.status = #ACCEPTED),
+            frLst = frReqs.reqSender->union(frReqs.reqRcvr)->asSet()
+                ->excluding(self)
+        in frLst = friends
+
     -- Blocked players can't be your friends
     inv notFriendAndBlocked:
-        let
-            allReqs = sentReqs->union(rcvdReqs),
-            acceptedFrReqs = allReqs->select(req | req.type = #FRIEND and
-                req.status = #ACCEPTED),
-            friends = acceptedFrReqs.reqSender->union(acceptedFrReqs.reqRcvr)
-                ->asSet()->excluding(self),
-            blockedLst = block[player]
-                ->select(b | b.status = #BLOCKED).blocked
-        in friends->excludesAll(blocked)
+        friends->excludesAll(block[player]->select(b |
+            b.status = #BLOCKED).blocked
+        )
 
     -- Cannot send requests to yourself
     inv noSelfReqsBlocks: sentReqs.reqRcvr->excludes(self) and
@@ -2872,16 +2892,13 @@ context Player
     -- For a given pair or players, there may not be any pending or accepted
     -- message requests between them if there exists an accepted friend
     -- request between them
-    inv noActiveMsgReqIfFriendReqAccepted:
+    inv noActiveMsgReqIfPlayersAreFriends:
         let
             allReqs = sentReqs->union(rcvdReqs),
-            frReqs = allReqs->select(req | req.type = #FRIEND and
-                req.status = #ACCEPTED),
             msgReqs = allReqs->select(req | req.type = #MESSAGE and
                 Set{#PENDING, #ACCEPTED}->includes(req.status))
-        in frReqs->forAll(f | not msgReqs->exists(m |
-            Set{f.reqSender, f.reqRcvr} = Set{m.reqSender, m.reqRcvr}
-        ))
+        in msgReqs->forAll(m |
+            friends->excludesAll(Set{m.reqSender, m.reqRcvr}))
 
     -- For a given pair or players, there must not be any pending or accepted
     -- message requests between them if there exists an accepted friend
@@ -2910,8 +2927,7 @@ context Player
 
         -- Players may only have one chat open at a time
         inv noOtherChatOpen: chatState
-            ->select(cs | cs.status = #OPEN)
-            ->size() <= 1
+            ->select(cs | cs.status = #OPEN)->size() <= 1
 
     -- Can only chat if one player has accepted a message or friend request
     -- from the other player
@@ -3101,123 +3117,6 @@ context Play
     -- Passed plays or match quits cant have any tiles
     inv passAndQuitHaveNoTiles: Set{#PASS, #QUIT}->includes(type) implies
         tiles->isEmpty()
-
-    -- Only valid words may be spelt and only words spelt may be linked to
-    -- a play
-    inv allWordsSpeltAreValidAndOnlySpeltWordsLinked: type = #PLAY implies
-        (let
-            grid = match.board,
-
-            -- All the slots that were filled by tiles provided by the rack
-            -- this turn
-            mainWordSlots = if direction = #HORIZONTAL then
-                Sequence{startCol..15}->iterate(
-                c; ans: Sequence(Integer) = Sequence{} |
-                    if (not grid.slots[startRow, c].isEmpty()) and
-                    grid.slots[startRow, c].filledAt.equals(time) then
-                        ans->append(c)
-                    else ans endif
-                )
-            else --if direction = #VERTICAL then
-                Sequence{startRow..15}->iterate(
-                r; ans: Sequence(Integer) = Sequence{} |
-                    if (not grid.slots[r, startCol].isEmpty()) and
-                    grid.slots[r, startCol].filledAt.equals(time) then
-                        ans->append(r)
-                    else ans endif
-                )
-            endif,
-
-            mainWord = if direction = #HORIZONTAL then
-                Sequence{startCol..15}->iterate(c; ans: String = '' |
-                    let
-                        s = grid.slots[startRow, c]
-                    in if not s.isEmpty() and
-                        ((startCol + ans.size()) = c) then
-                            ans + s.getTileString()
-                        else ans endif
-                )
-            else --if direction = #VERTICAL then
-                Sequence{startRow..15}->iterate(r; ans: String = '' |
-                    let
-                        s = grid.slots[r, startCol]
-                    in if not s.isEmpty() and
-                        ((startRow + ans.size()) = r) then
-                            ans + s.getTileString()
-                        else ans endif
-                )
-            endif,
-
-            secondaryWords = if direction = #HORIZONTAL then
-                mainWordSlots->iterate(c; ans: Set(String) = Set{} |
-                    let
-                        word = Sequence{1..(startRow-1)}->reverse()->iterate(
-                            r; top: String = '' |
-                                let
-                                    s = grid.slots[r, c]
-                                in if ((not s.isEmpty()) and
-                                    (not s.filledAt.after(time)) and
-                                    ((startRow - top.size()) = r)) then
-                                        s.getTileString() + top
-                                    else top endif
-                            ) +
-                            Sequence{startRow..15}->iterate(
-                            r; bot: String = '' |
-                                let
-                                    s = grid.slots[r, c]
-                                in if ((not s.isEmpty()) and
-                                    (not s.filledAt.after(time)) and
-                                    ((startRow + bot.size()) = r)) then
-                                        bot + s.getTileString()
-                                    else bot endif
-                            )
-                    in if word.size() > 1 then
-                            ans->including(word)
-                        else ans endif
-                )
-            else --if direction = #VERTICAL then
-                mainWordSlots->iterate(r; ans: Set(String) = Set{} |
-                    let
-                        word = Sequence{1..(startCol-1)}->reverse()->iterate(
-                            c; left: String = '' |
-                                let
-                                    s = grid.slots[r, c]
-                                in if ((not s.isEmpty()) and
-                                    (not s.filledAt.after(time)) and
-                                    ((startCol - left.size()) = c)) then
-                                        s.getTileString() + left
-                                    else left endif
-                            ) +
-                            Sequence{startCol..15}->iterate(
-                            c; right: String = '' |
-                                let
-                                    s = grid.slots[r, c]
-                                in if ((not s.isEmpty()) and
-                                    (not s.filledAt.after(time)) and
-                                    ((startCol + right.size()) = c)) then
-                                        right + s.getTileString()
-                                    else right endif
-                            )
-                    in if word.size() > 1 then
-                            ans->including(word)
-                        else ans endif
-                )
-            endif,
-
-            allSpeltWords = secondaryWords->including(mainWord),
-
-            allValidWords = match.dictionary.words
-                ->iterate(w; wSet:Set(String) = Set{} |
-                    wSet->including(w.getWord())
-                ),
-
-            allLinkedWords = words
-                ->iterate(w; wSet:Set(String) = Set{} |
-                    wSet->including(w.getWord())
-                )
-        in allValidWords->includesAll(allSpeltWords) and
-            allSpeltWords->includesAll(allLinkedWords)
-        )
 -- End Play Constraints
 
 context Board
@@ -3306,6 +3205,17 @@ context Match
         players.rank->forAll(p1, p2 |
             (type = #RANKED and (p1.placement - p2.placement).abs() <= 100) or
             (p1.placement - p2.placement).abs() <= 200
+        )
+
+    inv allPlaysSpellValidWords: playHistory->forAll(p |
+        getWordsSpeltByPlay(p.startRow, p.startCol, p.direction, p.tiles,
+        p.time)->forAll(w | dictionary.lookup(w) <> null))
+
+    inv allWordsSpeltByPlayLinked: playHistory->forAll(p | p.words->asSet() =
+            getWordsSpeltByPlay(p.startRow, p.startCol, p.direction, p.tiles,
+            p.time)->asSet()->iterate(w; ans: Set(Word) = Set{} |
+                ans->including(dictionary.lookup(w))
+            )
         )
 
     -- Once a match ends no additional plays can be made
