@@ -604,6 +604,8 @@ end -- Period Class
 ---------------------------------Domain Level---------------------------------
 
 class Scrumble
+attributes
+    currentTime: DateTime
 operations
     --
 end -- Scrumble Class
@@ -1294,6 +1296,287 @@ end -- Report Class
 
 -------------------------------------Game-------------------------------------
 
+class MatchBuilder
+operations
+    --! categoryGenerator doc
+    --! @brief Pseudo-randomly returns a match category based on the current
+    --!        time
+    --!
+    --! @return Category
+    categoryGenerator(): Category =
+        let
+            categories = Sequence{#ANIMAL, #MUSIC, #MOVIES, #FOOD, #BOOKS,
+                #COUNTRIES, #NONE},
+            catCnt = categories->size(),
+            dividend = scrumble.currentTime.secondsSinceEposh,
+            quotient = dividend div catCnt,
+            random = (quotient.mod(catCnt) + dividend.mod(catCnt))
+                .mod(catCnt) + 1
+        in categories->at(random)
+
+    --! buildRankedMatch doc
+    --! @brief Creates a ranked match and initializes all the relevant
+    --!        components
+    --!
+    --! @param Player p1 Player 1
+    --! @param Player p2 Player 2
+    --! @return Match
+    buildRankedMatch(p1: Player, p2: Player): Match
+    begin
+        declare
+            mp: Period,
+            matchStart: DateTime,
+            m: Match,
+            b: Board,
+            s: Slot,
+            tb: TileBag,
+            boardSize: Sequence(Integer),
+            lval: Sequence(String),
+            lcnt: Sequence(Integer),
+            tpt: Sequence(Integer),
+            l: Letter,
+            t: Tile,
+            p1R: Rack,
+            p2R: Rack;
+
+        new Period('mp');
+
+        new Match('m');
+        insert (self.scrumble, m) into ScrumbleMatches;
+        insert (m, self.scrumble.dictionary) into WordCheck;
+        m.init(#RANKED, true, self.categoryGenerator(), mp);
+
+        new Board('b');
+        insert (m, b) into MatchGameBoard;
+        boardSize := Sequence{1..15};
+        for r in boardSize do
+            for c in boardSize do
+                s := new Slot('b1R' + r.toString() + 'C' + c.toString());
+                insert (b{r, c}, s) into Grid;
+            end;
+        end;
+
+        new TileBag('tb');
+        insert (tb, b) into LetterOptions;
+        lval := Sequence{'A', 'B', 'C', 'D', 'E', 'F', 'G', 'H', 'I', 'J',
+            'K', 'L', 'M', 'N', 'O', 'P', 'Q', 'R', 'S', 'T', 'U', 'V', 'W',
+            'X', 'Y', 'Z'};
+        lcnt := Sequence{9, 2, 2, 4, 12, 2, 3, 2, 9, 1, 1, 4, 2, 6, 8, 2, 1,
+            6, 4, 6, 4, 2, 2, 1, 2, 1};
+        tpt  := Sequence{ 1, 3, 3, 2, 1, 4, 2, 4, 1, 8, 5, 1, 3, 1, 1, 3, 10,
+            1, 1, 1, 1, 4, 4, 8, 4, 10};
+        for i in Sequence{1..lval->size()} do
+            l := new Letter(m.id + lval->at(i));
+            l.letter := lval->at(i);
+            for j in Sequence{1..lcnt->at(i)} do
+                t := new Tile(m.id + lval->at(i) + j.toString() + 'Tile');
+                t.points := tpt->at(i);
+                insert (t, l) into Mark;
+                insert (tb, t) into Stock;
+            end;
+        end;
+
+        new Rack('p1R') between (p2, m);
+        p1R.drawTiles();
+        new Rack('p2R') between (p1, m);
+        p2R.drawTiles();
+
+        new DateTime('matchStart');
+        insert (matchStart, self.scrumble.currentTime) into CurrentTime;
+        matchStart.setToNow();
+        mp.addStart(matchStart);
+        result := m;
+    end
+
+    pre argsAreValid: p1 <> null and p2 <> null
+    post hasDuration: result.duration <> null
+    post isRanked: result.type = #RANKED
+    post isTimed: result.timed = true
+    post consistentTilePointValues: result.tilePointsAreValid()
+    post fixedNumberOfLettersInMatch: result.tileCountIsValid()
+
+    --! buildUnrankedTimedMatch doc
+    --! @brief Creates an unranked timed match and initializes all the
+    --!        relevant components
+    --!
+    --! @param Player p1 Player 1
+    --! @param Player p2 Player 2
+    --! @return Match
+    buildUnrankedTimedMatch(p1: Player, p2: Player): Match
+    begin
+        declare
+            mp: Period,
+            matchStart: DateTime,
+            m: Match,
+            b: Board,
+            s: Slot,
+            tb: TileBag,
+            boardSize: Sequence(Integer),
+            lval: Sequence(String),
+            lcnt: Sequence(Integer),
+            tpt: Sequence(Integer),
+            l: Letter,
+            t: Tile,
+            p1R: Rack,
+            p2R: Rack;
+
+        new Period('mp');
+
+        new Match('m');
+        insert (self.scrumble, m) into ScrumbleMatches;
+        insert (m, self.scrumble.dictionary) into WordCheck;
+        m.init(#UNRANKED, true, self.categoryGenerator(), mp);
+
+        new Board('b');
+        insert (m, b) into MatchGameBoard;
+        boardSize := Sequence{1..15};
+        for r in boardSize do
+            for c in boardSize do
+                s := new Slot('b1R' + r.toString() + 'C' + c.toString());
+                insert (b{r, c}, s) into Grid;
+            end;
+        end;
+
+        new TileBag('tb');
+        insert (tb, b) into LetterOptions;
+        lval := Sequence{'A', 'B', 'C', 'D', 'E', 'F', 'G', 'H', 'I', 'J',
+            'K', 'L', 'M', 'N', 'O', 'P', 'Q', 'R', 'S', 'T', 'U', 'V', 'W',
+            'X', 'Y', 'Z'};
+        lcnt := Sequence{9, 2, 2, 4, 12, 2, 3, 2, 9, 1, 1, 4, 2, 6, 8, 2, 1,
+            6, 4, 6, 4, 2, 2, 1, 2, 1};
+        tpt  := Sequence{ 1, 3, 3, 2, 1, 4, 2, 4, 1, 8, 5, 1, 3, 1, 1, 3, 10,
+            1, 1, 1, 1, 4, 4, 8, 4, 10};
+        for i in Sequence{1..lval->size()} do
+            l := new Letter(m.id + lval->at(i));
+            l.letter := lval->at(i);
+            for j in Sequence{1..lcnt->at(i)} do
+                t := new Tile(m.id + lval->at(i) + j.toString() + 'Tile');
+                t.points := tpt->at(i);
+                insert (t, l) into Mark;
+                insert (tb, t) into Stock;
+            end;
+        end;
+
+        new Rack('p1R') between (p2, m);
+        p1R.drawTiles();
+        new Rack('p2R') between (p1, m);
+        p2R.drawTiles();
+
+        new DateTime('matchStart');
+        insert (matchStart, self.scrumble.currentTime) into CurrentTime;
+        matchStart.setToNow();
+        mp.addStart(matchStart);
+        result := m;
+    end
+
+    pre argsAreValid: p1 <> null and p2 <> null
+    post hasDuration: result.duration <> null
+    post isRanked: result.type = #UNRANKED
+    post isTimed: result.timed = true
+    post consistentTilePointValues: result.tilePointsAreValid()
+    post fixedNumberOfLettersInMatch: result.tileCountIsValid()
+
+    --! buildUnrankedUntimedMatch doc
+    --! @brief Creates an unranked untimed match and initializes all the
+    --!        relevant components
+    --!
+    --! @param Player p1 Player 1
+    --! @param Player p2 Player 2
+    --! @return Match
+    buildUnrankedUntimedMatch(p1: Player, p2: Player): Match
+    begin
+        declare
+            mp: Period,
+            matchStart: DateTime,
+            m: Match,
+            b: Board,
+            s: Slot,
+            tb: TileBag,
+            boardSize: Sequence(Integer),
+            lval: Sequence(String),
+            lcnt: Sequence(Integer),
+            tpt: Sequence(Integer),
+            l: Letter,
+            t: Tile,
+            p1R: Rack,
+            p2R: Rack;
+
+        new Period('mp');
+
+        new Match('m');
+        insert (self.scrumble, m) into ScrumbleMatches;
+        insert (m, self.scrumble.dictionary) into WordCheck;
+        m.init(#UNRANKED, false, self.categoryGenerator(), mp);
+
+        new Board('b');
+        insert (m, b) into MatchGameBoard;
+        boardSize := Sequence{1..15};
+        for r in boardSize do
+            for c in boardSize do
+                s := new Slot('b1R' + r.toString() + 'C' + c.toString());
+                insert (b{r, c}, s) into Grid;
+            end;
+        end;
+
+        new TileBag('tb');
+        insert (tb, b) into LetterOptions;
+        lval := Sequence{'A', 'B', 'C', 'D', 'E', 'F', 'G', 'H', 'I', 'J',
+            'K', 'L', 'M', 'N', 'O', 'P', 'Q', 'R', 'S', 'T', 'U', 'V', 'W',
+            'X', 'Y', 'Z'};
+        lcnt := Sequence{9, 2, 2, 4, 12, 2, 3, 2, 9, 1, 1, 4, 2, 6, 8, 2, 1,
+            6, 4, 6, 4, 2, 2, 1, 2, 1};
+        tpt  := Sequence{ 1, 3, 3, 2, 1, 4, 2, 4, 1, 8, 5, 1, 3, 1, 1, 3, 10,
+            1, 1, 1, 1, 4, 4, 8, 4, 10};
+        for i in Sequence{1..lval->size()} do
+            l := new Letter(m.id + lval->at(i));
+            l.letter := lval->at(i);
+            for j in Sequence{1..lcnt->at(i)} do
+                t := new Tile(m.id + lval->at(i) + j.toString() + 'Tile');
+                t.points := tpt->at(i);
+                insert (t, l) into Mark;
+                insert (tb, t) into Stock;
+            end;
+        end;
+
+        new Rack('p1R') between (p2, m);
+        p1R.drawTiles();
+        new Rack('p2R') between (p1, m);
+        p2R.drawTiles();
+
+        new DateTime('matchStart');
+        insert (matchStart, self.scrumble.currentTime) into CurrentTime;
+        matchStart.setToNow();
+        mp.addStart(matchStart);
+        result := m;
+    end
+
+    pre argsAreValid: p1 <> null and p2 <> null
+    post hasDuration: result.duration <> null
+    post isRanked: result.type = #UNRANKED
+    post isTimed: result.timed = false
+    post consistentTilePointValues: result.tilePointsAreValid()
+    post fixedNumberOfLettersInMatch: result.tileCountIsValid()
+end -- MatchBuilder Class
+
+class MatchFactory
+operations
+    getMatch(p1: Player, p2: Player, type: MatchType, timed: Boolean): Match
+    begin
+        if type = #RANKED then
+            result := self.mBuilder.buildRankedMatch(p1, p2);
+        else if type = #UNRANKED then
+            if timed = true then
+                result := self.mBuilder.buildUnrankedTimedMatch(p1, p2);
+            else
+                result := self.mBuilder.buildUnrankedUntimedMatch(p1, p2);
+            end;
+        end; end;
+    end
+
+    pre noPre: true
+    post noPost: true
+end -- MatchFactory Class
+
 class Queue < Observable
 operations
     --! matchmaking doc
@@ -1325,6 +1608,14 @@ between
     Player[2] role players
     Match[*] role matchHistory ordered
 operations
+    --! drawTiles doc
+    --! @brief Tells the match instance to gets a random set of tiles to fill
+    --!        the empty slots in the rack
+    drawTiles()
+    begin self.matchHistory.getTiles(self); end
+    pre noPre: true
+    pre noPost: true
+
     --! triggerPlay doc
     --! @brief starts the process of making a play
     triggerPlay(sRow: Integer, sCol: Integer, dir: PlayDirection,
@@ -1339,7 +1630,7 @@ operations
     --! @brief Starts the process of passing a turn
     triggerPass()
     pre playerIsInGame: players.status = #PLAYING
-    post: true
+    post noPost: true
 
     --! triggerQuit
     --! @brief Starts the process of forfeiting the game
@@ -1374,10 +1665,20 @@ operations
     --!                                 the play
     --! @param PlayType t The type of play being made
     init(sRow: Integer, sCol: Integer, dir: PlayDirection,
-    tileSeq: OrderedSet(Tile), t: PlayType)
-    -- Essentially a wrapper for the executePlay method in match
+    tileSeq: OrderedSet(Tile), t: PlayType, pTime: DateTime)
+    begin
+        --self.id = self.match.id + 'play' +
+        --    (self.match.playHistory->size() + 1).toString();
+        self.type := #QUIT;
+        self.startRow := sRow;
+        self.startCol := sCol;
+        self.direction := dir;
+        self.time := pTime;
+    end
+
     pre argsAreValid: t = #PLAY implies
         Set{sRow, sCol, dir}->excludes(null) and tileSeq->size() > 0
+    pre linkedToMatch: match <> null
     post attributesSet: startRow = sRow and startCol = sCol and
         direction = dir and type = t and time <> null and
         time.equalsNow()
@@ -1396,31 +1697,49 @@ operations
                             ->any(t | t.letter.letter = l.letter).points
                     )
                 )
-        in (flatScore * multiplier).floor
-    pre isAPlay: type = #PLAY
-    post: true
+        in if type = #PLAY then
+                (flatScore * multiplier).floor
+            else 0 endif
+    pre noPre: true
+    post noPost: true
 
     --! calcMultiplier doc
     --! @brief Determines the score multiplier for the play
     --!
     --! @return Real
     calcMultiplier(): Real =
-        if words.category->excluding(#NONE)
-        ->includes(match.category) then
-            1.5
-        else
-            1
-        endif
-    pre isAPlay: type = #PLAY
-    post: true
+        if type = #PLAY then
+            if words.category->excluding(#NONE)
+            ->includes(match.category) then
+                1.5
+            else
+                1
+            endif
+        else 0 endif
+    pre noPre: true
+    post noPost: true
 end -- Play Class
 
 class Board
+operations
+    --! getSlot doc
+    --! @brief Returns the slot at the row and column specified
+    --!
+    --! It appears as though there is a bug in specifying qualifiers using
+    --! variables in SOIL so this method was written to work around that. See
+    --! the executePlay() method in match for details
+    --!
+    --! @param Integer r The row the slot is in
+    --! @param Integer c The column the slot is in
+    --! @return Slot
+    getSlot(r: Integer, c: Integer): Slot = slots[r, c]
+    pre argsAreValid: Set{1..15}->includesAll(Set{r, c})
+    post noPost: true
 end -- Board Class
 
 class Slot
 attributes
-    filledAt: DateTime
+    filledAt: DateTime init: tile.play.time
 operations
     --! getTile doc
     --! @brief Returns the tile in the slot
@@ -1439,7 +1758,13 @@ operations
     --!
     --! @param Tile t The tile to be placed in the slot
     fill(t: Tile)
-    -- #TODO Pre and Post
+    begin insert (self, t) into Fill; end
+    pre argIsValid: t <> null and board.slots.tile
+        ->union(board.tileBag.tiles)
+        ->union(board.match.rack.tiles)
+        ->includes(t)
+    pre tileNotHeldByAnything: Set{t.slot, t.rack, t.tileBag}->size() = 0
+    post slotFilled: tile = t
 
     --! isEmpty doc
     --! @brief Returns true if the slot does not contain a tile
@@ -1510,15 +1835,51 @@ operations
     init()
     -- #TODO Pre and Post
 
+    --! random doc
+    --! @brief Generates pseudo random number based on the current time to be
+    --!        used to pick the next tile to draw
+    --!
+    --! @return Integer
+    random(): Integer =
+        let
+            tcnt = tiles->size(),
+            dividend = board.match.scrumble.currentTime.secondsSinceEposh,
+            quotient = dividend div tcnt
+        in if tcnt > 0 then
+                (quotient.mod(tcnt) + dividend.mod(tcnt)).mod(tcnt) + 1
+            else -1 endif
+    post validNum: result >= 1 and result <= tiles->size()
+
     --! remove doc
     --! @brief Randomly picks a tile from the bag
-    remove()
-    -- #TODO Pre and Post
+    --!
+    --! @param Integer tcnt The maximum number of tiles to be removed
+    --! @return Sequence(Tiles)
+    remove(tcnt: Integer): Set(Tile)
+    begin
+        declare t: Tile,
+            removedTiles: Set(Tile),
+            tSeq: Sequence(Tile);
+        tSeq := self.tiles->asSequence();
+
+        for i in Sequence{1..tcnt} do
+            if self.tiles->size() > 0 then
+                t := tSeq->at(random());
+                removedTiles := removedTiles->including(t);
+                tSeq := tSeq->excluding(t);
+                delete (self, t) from Stock;
+            end;
+        end;
+        result := removedTiles;
+    end
+
+    pre argIsValid: tcnt >= 1 and tcnt <= 9
+    post tilesRemoved: (result = (tiles@pre - tiles)) and
+        result->size() <= tcnt
 end -- TileBag Class
 
 class Word
 attributes
-    String: Word
     category: Category init: #NONE
     status: WordStatus init: #VALID
 operations
@@ -1561,7 +1922,7 @@ attributes
     timed: Boolean
     duration: Period
     category: Category
-    status: MatchStatus init: #INPROGRESS
+    status: MatchStatus derived = updateStatus()
     score: Integer derived = updateSlider()
 operations
     --! init doc
@@ -1572,9 +1933,19 @@ operations
     --! @param MatchType matchType The type of match to be created
     --! @param Boolean matchTimed Whether the match is timed or not
     --! @param Category cat The special category to be applied
-    init(matchType: MatchType, matchTimed: Boolean, cat: Category)
+    --! @param Period mp The period representing the duration of the match
+    init(matchType: MatchType, matchTimed: Boolean, cat: Category, mp: Period)
+    begin
+        self.id := 'm' + (self.scrumble.matches->size() + 1).toString();
+        self.type := matchType;
+        self.timed := matchTimed;
+        self.duration := mp;
+        self.category := cat;
+    end
+
     pre argsAreValid: matchType <> null and matchTimed <> null and
         (matchType = #RANKED implies matchTimed) and cat <> null
+    pre linkedToScrumble: scrumble <> null
     post isInitialised: type = matchType and timed = matchTimed and
         category = cat and status = #INPROGRESS and score = 0 and
         duration.getStart().equalsNow()
@@ -1592,6 +1963,28 @@ operations
         else
             ans - p.score
         endif)
+
+    --! updateStatus doc
+    --! @brief Updates the status of the match
+    --!
+    --! @return MaatchStatus
+    updateStatus(): MatchStatus =
+        -- A match is complete if a player wins, the match times out or both
+        -- players have played the same number of times and at least one
+        -- empties their hand. A match is abandoned if a player quits
+        -- otherwise the match is still in progress.
+        if score.abs() >= 100 or
+            (type = #UNRANKED and duration.durationInDays() = 30) or
+            (type = #RANKED and duration.duration() = 300) or -- seconds
+            (playHistory->size().mod(2) = 0 and
+                rack->exists(r | r.tiles->size() = 0))
+        then
+            #COMPLETE
+        else if playHistory->last().type = #QUIT then
+            #ABANDONED
+        else
+            #INPROGRESS
+        endif endif
 
     --! update doc
     --! @brief This is the method called by the observable to update the
@@ -1611,31 +2004,219 @@ operations
     updateHelperPlay(o: Play)
     -- #TODO Pre and Post
 
+    --! getTiles doc
+    --! @brief Gets tiles to fill the empty slots in the rack
+    getTiles(r: Rack)
+    begin
+        declare newTiles: Set(Tile);
+        newTiles := self.board.tileBag.remove(9 - r.tiles->size());
+
+        for t in newTiles do
+            insert (r, t) into Hold;
+        end;
+    end
+
+    pre hasSpace: r.tiles->size() < 9
+    post gotTiles: (r.tiles->asSet() - r.tiles@pre->asSet()) =
+        (board.tileBag->asSet() - board@pre.tileBag->asSet())
+
+    --! getWordsSpeltByPlay doc
+    --! @brief Returns all the words spelt by a play
+    --!
+    --! @param Integer sRow The row where the main word of the play starts
+    --! @param Integer sCol The column where the main word of the play starts
+    --! @param PlayDirection dir The direction in which the main word is spelt
+    --! @param OrderedSet(Tile) tileSeq The set of tiles to be used to make
+    --!                                 the play
+    --! @param DateTime pTime The point in time at which the play was made
+    --! @return Set(String)
+    getWordsSpeltByPlay(sRow: Integer, sCol: Integer, dir: PlayDirection,
+    tileSeq: OrderedSet(Tile), pTime: DateTime): Bag(String) =
+        let
+            tcnt = tileSeq->size(),
+            -- All the slots that were filled by tiles provided by the rack
+            -- this turn
+            mainWordSlots = if dir = #HORIZONTAL then
+                Sequence{sCol..15}->iterate(
+                c; ans: Sequence(Integer) = Sequence{} |
+                    if (ans->size() < tcnt) and
+                        (board.slots[sRow, c].isEmpty() or
+                        (not board.slots[sRow, c].filledAt.before(pTime)))
+                    then
+                        ans->append(c)
+                    else ans endif
+                )
+            else --if dir = #VERTICAL then
+                Sequence{sRow..15}->iterate(
+                r; ans: Sequence(Integer) = Sequence{} |
+                    if (ans->size() < tcnt) and
+                        (board.slots[r, sCol].isEmpty() or
+                        (not board.slots[r, sCol].filledAt.before(pTime)))
+                    then
+                        ans->append(r)
+                    else ans endif
+                )
+            endif,
+
+            mainWord = if dir = #HORIZONTAL then
+                Sequence{sCol..15}->iterate(c; ans: String = '' |
+                    let
+                        s = board.slots[sRow, c]
+                    in if not s.isEmpty() and ((sCol + ans.size()) = c) then
+                            ans + s.getTileString()
+                        else if mainWordSlots->includes(c) then
+                            ans + tileSeq->at(mainWordSlots->indexOf(c))
+                                .getLetterString()
+                        else ans endif endif
+                )
+            else --if dir = #VERTICAL then
+                Sequence{sRow..15}->iterate(r; ans: String = '' |
+                    let
+                        s = board.slots[r, sCol]
+                    in if not s.isEmpty() and
+                        ((sRow + ans.size()) = r) then
+                            ans + s.getTileString()
+                        else if mainWordSlots->includes(r) then
+                            ans + tileSeq->at(mainWordSlots->indexOf(r))
+                                .getLetterString()
+                        else ans endif endif
+                )
+            endif,
+
+            secondaryWords = if dir = #HORIZONTAL then
+                mainWordSlots->iterate(c; ans: Bag(String) = Bag{} |
+                    let
+                        word = Sequence{1..(sRow-1)}->reverse()->iterate(
+                            r; top: String = '' |
+                                let
+                                    s = board.slots[r, c]
+                                in if ((not s.isEmpty()) and
+                                    s.filledAt.before(pTime) and
+                                    ((sRow - top.size()) = r)) then
+                                        s.getTileString() + top
+                                    else top endif
+                            ) +
+                            (if board.slots[sRow, c].isEmpty() then
+                                tileSeq->at(mainWordSlots->indexOf(c))
+                            else
+                                board.slots[sRow, c].getTileString()
+                            endif).oclAsType(String)
+                            +
+                            Sequence{(sRow+1)..15}->iterate(
+                            r; bot: String = '' |
+                                let
+                                    s = board.slots[r, c]
+                                in if ((not s.isEmpty()) and
+                                    s.filledAt.before(pTime) and
+                                    ((sRow + bot.size()) = r)) then
+                                        bot + s.getTileString()
+                                    else bot endif
+                            )
+                    in if word.size() > 1 then
+                            ans->including(word)
+                        else ans endif
+                )
+            else --if dir = #VERTICAL then
+                mainWordSlots->iterate(r; ans: Bag(String) = Bag{} |
+                    let
+                        word = Sequence{1..(sCol-1)}->reverse()->iterate(
+                            c; left: String = '' |
+                                let
+                                    s = board.slots[r, c]
+                                in if ((not s.isEmpty()) and
+                                    s.filledAt.before(pTime) and
+                                    ((sCol - left.size()) = c)) then
+                                        s.getTileString() + left
+                                    else left endif
+                            ) +
+                            (if board.slots[r, sCol].isEmpty() then
+                                tileSeq->at(mainWordSlots->indexOf(r))
+                            else
+                                board.slots[r, sCol].getTileString()
+                            endif).oclAsType(String)
+                            +
+                            Sequence{(sCol+1)..15}->iterate(
+                            c; right: String = '' |
+                                let
+                                    s = board.slots[r, c]
+                                in if ((not s.isEmpty()) and
+                                    s.filledAt.before(pTime) and
+                                    ((sCol + right.size()) = c)) then
+                                        right + s.getTileString()
+                                    else right endif
+                            )
+                    in if word.size() > 1 then
+                            ans->including(word)
+                        else ans endif
+                )
+            endif
+        in secondaryWords->including(mainWord)
+
+    pre argsAreValid: Sequence{1..15}->includesAll(Set{sRow, sCol}) and
+        tileSeq->size() > 0 and dir <> null and pTime.isSelfValid()
+    post noPost: true
+
     --! executePass doc
     --! @brief Creates a play with type pass
     --!
     --! @param Rack r The rack that triggered the Pass
     executePass(r: Rack)
+    begin
+        declare
+            p: Play,
+            pTime: DateTime,
+            i: Integer;
+
+        new DateTime('pTime');
+        insert (pTime, self.scrumble.currentTime) into CurrentTime;
+        pTime.setToNow();
+
+        new Play('p');
+        insert (r, p) into Played;
+        insert (self, p) into Plays;
+        p.init(0, 0, null, null, #PASS, pTime);
+    end
+
     pre argIsValid: r <> null
+    pre isPlayersTurn: playHistory->last().rack.players <> r.players
+    pre matchNotFinished: status = #INPROGRESS
     post playMade:
-            let
-                lp = playHistory->last()
-            in lp.type = #PASS and lp.time.equalsNow() and
-                playHistory@pre->including(lp) = playHistory and
-                lp.oclIsNew()
+        let
+            lp = playHistory->last()
+        in lp.type = #PASS and lp.time.equalsNow() and
+            playHistory@pre->including(lp) = playHistory and
+            lp.oclIsNew()
 
     --! executeQuit doc
     --! @brief Creates a play with type quit
     --!
     --! @param Rack r The rack that triggered the Quit
     executeQuit(r: Rack)
+    begin
+        declare
+            p: Play,
+            pTime: DateTime,
+            i: Integer;
+
+        new DateTime('pTime');
+        insert (pTime, self.scrumble.currentTime) into CurrentTime;
+        pTime.setToNow();
+
+        new Play('p');
+        insert (r, p) into Played;
+        insert (self, p) into Plays;
+        p.init(0, 0, null, null, #QUIT, pTime);
+    end
+
     pre argIsValid: r <> null
+    pre isPlayersTurn: playHistory->last().rack.players <> r.players
+    pre matchNotFinished: status = #INPROGRESS
     post playMade:
-            let
-                lp = playHistory->last()
-            in lp.type = #QUIT and lp.time.equalsNow() and
-                playHistory@pre->including(lp) = playHistory and
-                lp.oclIsNew()
+        let
+            lp = playHistory->last()
+        in lp.type = #QUIT and lp.time.equalsNow() and
+            playHistory@pre->including(lp) = playHistory and
+            lp.oclIsNew()
 
     --! executePlay doc
     --! @brief Places the tiles on the board
@@ -1648,13 +2229,84 @@ operations
     --!                                 the play
     executePlay(r: Rack, sRow: Integer, sCol: Integer, dir: PlayDirection,
     tileSeq: OrderedSet(Tile))
-    pre playIsValid: playHelperIsPlayValid(sRow, sCol, dir, tileSeq->size())
+    begin
+        declare
+            p: Play,
+            pTime: DateTime,
+            i: Integer,
+            words: Bag(String),
+            s: Slot;
+
+        new DateTime('pTime');
+        insert (pTime, self.scrumble.currentTime) into CurrentTime;
+        pTime.setToNow();
+
+        new Play('p');
+        insert (r, p) into Played;
+        insert (self, p) into Plays;
+        p.init(sRow, sCol, dir, tileSeq, #PASS, pTime);
+
+        for t in tileSeq do
+            -- Remove from Rack
+            delete (r, t) from Hold;
+            -- Store reference in Play
+            insert (p, t) into Use;
+        end;
+
+        -- Fill the Slots on the Board
+        i := 0;
+        if dir = #HORIZONTAL then
+            for col in Sequence{sCol..15} do
+                --if self.board.slots[sRow, col].isEmpty() and
+                --    i < tileSeq->size()
+                --then
+                --    self.board.slots[sRow, col].fill(tileSeq->at(i));
+                --    i := i + 1;
+                --end;
+                if self.board.getSlot(sRow, col).isEmpty() and
+                    i < tileSeq->size()
+                then
+                    self.board.getSlot(sRow, col).fill(tileSeq->at(i));
+                    i := i + 1;
+                end;
+            end;
+        else --if dir = #VERTICAL then
+            for row in Sequence{sRow..15} do
+                --if self.board.slots[row, sCol].isEmpty() and
+                --    i < tileSeq->size()
+                --then
+                --    self.board.slots[row, sCol].fill(tileSeq->at(i));
+                --    i := i + 1;
+                --end;
+                if self.board.getSlot(row, sCol).isEmpty() and
+                    i < tileSeq->size()
+                then
+                    self.board.getSlot(row, sCol).fill(tileSeq->at(i));
+                    i := i + 1;
+                end;
+            end;
+        end;
+
+        -- Find all the words spelt and link them to the play
+        words := self.getWordsSpeltByPlay(sRow, sCol, dir, tileSeq,
+        self.scrumble.currentTime);
+        for w in words do
+            insert (p, self.dictionary.lookup(w)) into Spelt;
+        end;
+
+        -- Get new tiles from the LetterBag
+        r.drawTiles();
+    end
+
+    pre playIsValid: playHelperIsPlayValid(sRow, sCol, dir, tileSeq)
+    pre isPlayersTurn: playHistory->last().rack.players <> r.players
+    pre matchNotFinished: status = #INPROGRESS
     post playMade:
-            let
-                lp = playHistory->last()
-            in lp.type = #PLAY and lp.time.equalsNow() and
-                playHistory@pre->including(lp) = playHistory and
-                lp.oclIsNew()
+        let
+            lp = playHistory->last()
+        in lp.type = #PLAY and lp.time.equalsNow() and
+            playHistory@pre->including(lp) = playHistory and
+            lp.oclIsNew()
     post tilesPlaced:
         if dir = #HORIZONTAL then
             Sequence{sCol..15}->iterate(c; ans: Set(Tile) = Set{} |
@@ -1693,6 +2345,7 @@ operations
         endif
     pre argsAreValid: Sequence{1..15}->includesAll(Set{sRow, sCol, tcnt}) and
         dir <> null
+    post noPost: true
 
     --! playHelperPlayIntersects doc
     --! @brief Returns true if the play intersects with a word on the board
@@ -1724,6 +2377,26 @@ operations
         endif
     pre argsAreValid: Sequence{1..15}->includesAll(Set{sRow, sCol, tcnt}) and
         dir <> null
+    post noPost: true
+
+    --! playHelperSpeltWordsValid doc
+    --! @brief Checks that all the words that would be spelt by the play are
+    --!        words in the game's dictionary
+    --!
+    --! @param Integer sRow The row where the main word of the play starts
+    --! @param Integer sCol The column where the main word of the play starts
+    --! @param PlayDirection dir The direction in which the main word is spelt
+    --! @param OrderedSet(Tile) tileSeq The set of tiles to be used to make
+    --!                                 the play
+    --! @return Boolean
+    playHelperSpeltWordsValid(sRow: Integer, sCol: Integer,
+    dir: PlayDirection, tileSeq: OrderedSet(Tile)): Boolean =
+        getWordsSpeltByPlay(sRow, sCol, dir, tileSeq, scrumble.currentTime)
+            ->asSet()->forAll(w | dictionary.lookup(w) <> null)
+    pre argsAreValid: Sequence{1..15}->includesAll(Set{sRow, sCol}) and
+        dir <> null and tileSeq->size() > 0
+    post noPost: true
+
 
     --! playHelperIsPlayValid doc
     --! @brief Returns true if the play is valid
@@ -1733,12 +2406,94 @@ operations
     --!
     --! @return Boolean
     playHelperIsPlayValid(sRow: Integer, sCol: Integer, dir: PlayDirection,
-    tcnt: Integer): Boolean =
-        playHelperAllTilesFit(sRow, sCol, dir, tcnt) and
+    tileSeq: OrderedSet(Tile)): Boolean =
+        playHelperAllTilesFit(sRow, sCol, dir, tileSeq->size()) and
         ((playHistory->size() > 0 and
-            playHelperPlayIntersects(sRow, sCol, dir, tcnt)) or
+            playHelperPlayIntersects(sRow, sCol, dir, tileSeq->size())) or
         (playHistory->size() = 0 and sRow = 8 and sCol = 8 and
-                dir <> null and tcnt > 0))
+                dir <> null and tileSeq->size() > 0)) and
+        playHelperSpeltWordsValid(sRow, sCol, dir, tileSeq)
+    pre noPre: true
+    pre noPost: true
+
+    --! tilePointsAreValid doc
+    --! @brief Checks that all the tiles with the same letter have the same
+    --!        point value
+    --!
+    --! @return Boolean
+    tilePointsAreValid(): Boolean =
+        let
+            bagTiles = board.tileBag.tiles,
+            rackTiles = rack.tiles,
+            boardTiles = board.slots.tile,
+            allTiles = bagTiles->union(rackTiles->union(boardTiles))
+                ->excluding(null)
+        in allTiles->forAll(t1, t2|
+            t1.getLetter().equals(t2.getLetter()) implies
+            t1.getPoints() = t2.getPoints())
+    pre noPre: true
+    pre noPost: true
+
+    --! tileCountIsValid doc
+    --! @brief Checks that the number of tiles being used in the match is
+    --!        valid
+    --!
+    --! @return Boolean
+    tileCountIsValid(): Boolean =
+        let
+            bagLetters = board.tileBag.tiles.letter->asSet(),
+            rackLetters = rack.tiles.letter->asSet(),
+            boardLetters = board.slots.tile.letter->asSet(),
+            allTiles = bagLetters->union(rackLetters->union(boardLetters))
+                ->excluding(null),
+            count = allTiles->iterate(
+                char; cnt:Tuple(a: Integer, b: Integer, c: Integer,
+                d: Integer, e: Integer, f: Integer, g: Integer, h: Integer,
+                i: Integer, j: Integer, k: Integer, l: Integer, m: Integer,
+                n: Integer, o: Integer, p: Integer, q: Integer, r: Integer,
+                s: Integer, t: Integer, u: Integer, v: Integer, w: Integer,
+                x: Integer, y: Integer, z: Integer) =
+                Tuple{a = 0, b = 0, c = 0, d = 0, e = 0, f = 0, g = 0,
+                h = 0, i = 0, j = 0, k = 0, l = 0, m = 0, n = 0, o = 0,
+                p = 0, q = 0, r = 0, s = 0, t = 0, u = 0, v = 0, w = 0,
+                x = 0, y = 0, z = 0} |
+                    Tuple{
+                    a = if char.letter = 'A' then cnt.a + 1 else cnt.a endif,
+                    b = if char.letter = 'B' then cnt.b + 1 else cnt.b endif,
+                    c = if char.letter = 'C' then cnt.c + 1 else cnt.c endif,
+                    d = if char.letter = 'D' then cnt.d + 1 else cnt.d endif,
+                    e = if char.letter = 'E' then cnt.e + 1 else cnt.e endif,
+                    f = if char.letter = 'F' then cnt.f + 1 else cnt.f endif,
+                    g = if char.letter = 'G' then cnt.g + 1 else cnt.g endif,
+                    h = if char.letter = 'H' then cnt.h + 1 else cnt.h endif,
+                    i = if char.letter = 'I' then cnt.i + 1 else cnt.i endif,
+                    j = if char.letter = 'J' then cnt.j + 1 else cnt.j endif,
+                    k = if char.letter = 'K' then cnt.k + 1 else cnt.k endif,
+                    l = if char.letter = 'L' then cnt.l + 1 else cnt.l endif,
+                    m = if char.letter = 'M' then cnt.m + 1 else cnt.m endif,
+                    n = if char.letter = 'N' then cnt.n + 1 else cnt.n endif,
+                    o = if char.letter = 'O' then cnt.o + 1 else cnt.o endif,
+                    p = if char.letter = 'P' then cnt.p + 1 else cnt.p endif,
+                    q = if char.letter = 'Q' then cnt.q + 1 else cnt.q endif,
+                    r = if char.letter = 'R' then cnt.r + 1 else cnt.r endif,
+                    s = if char.letter = 'S' then cnt.s + 1 else cnt.s endif,
+                    t = if char.letter = 'T' then cnt.t + 1 else cnt.t endif,
+                    u = if char.letter = 'U' then cnt.u + 1 else cnt.u endif,
+                    v = if char.letter = 'V' then cnt.v + 1 else cnt.v endif,
+                    w = if char.letter = 'W' then cnt.w + 1 else cnt.w endif,
+                    x = if char.letter = 'X' then cnt.x + 1 else cnt.x endif,
+                    y = if char.letter = 'Y' then cnt.y + 1 else cnt.y endif,
+                    z = if char.letter = 'Z' then cnt.z + 1 else cnt.z endif}
+                )
+        in (count.a = 9 and count.b = 2 and count.c = 2 and count.d = 4 and
+            count.e = 12 and count.f = 2 and count.g = 3 and count.h = 2 and
+            count.i = 9 and count.j = 1 and count.k = 1 and count.l = 4 and
+            count.m = 2 and count.n = 6 and count.o = 8 and count.p = 2 and
+            count.q = 1 and count.r = 6 and count.s = 4 and count.t = 6 and
+            count.u = 4 and count.v = 2 and count.w = 2 and count.x = 1 and
+            count.y = 2 and count.z = 1)
+    pre noPre: true
+    pre noPost: true
 statemachines
     psm matchStates
     states
@@ -1818,6 +2573,11 @@ association OnlyDict between
     Dictionary[1] role dict2
 end -- OnlyDict Association
 
+association MatchFactoryBuilder between
+    MatchFactory[1] role mFactory
+    MatchBuilder[1] role mBuilder
+end -- MatchFactoryBuilder Association
+
 ---------------------------------Domain Level---------------------------------
 
 association ScrumbleUsers between
@@ -1839,6 +2599,16 @@ association ScrumbleLboard between
     Scrumble[1]
     Leaderboard[1]
 end -- ScrumbleLboard Association
+
+association ScrumbleMatchBuilder between
+    Scrumble[1]
+    MatchBuilder[1] role mBuilder
+end -- ScrumbleMatchBuilder Association
+
+association ScrumbleMatchFactory between
+    Scrumble[1]
+    MatchFactory[1] role mFactory
+end -- ScrumbleMatchFactory Association
 
 --------------------------------------ACL-------------------------------------
 
@@ -1993,6 +2763,8 @@ context Scrumble
     inv uniqueUsernames: users.role
         ->select(r | r.oclIsTypeOf(Player))
         ->isUnique(p | p.oclAsType(Player).username)
+
+    inv currentTimeIsCorrect: currentTime.equals(currentTime.now)
 -- End Scrumble Constraints
 
 -------------------------------Abstract Classes-------------------------------
@@ -2493,7 +3265,7 @@ context Match
     inv hasDuration: duration.oclIsKindOf(Period)
 
     -- Only unranked matches may be untimed
-    inv noUntimedRankedMatches: type = #RANKED implies timed
+    inv noUntimedRankedMatches: type = #RANKED implies (timed = true)
 
     -- Plays must be ordered
     inv playsAreOrdered: playHistory->forAll(p |
@@ -2523,78 +3295,17 @@ context Match
         )
 
     -- Ensure all Tiles with the same letter have the same score
-    inv consistentTilePointValues:
-        let
-            bagTiles = board.tileBag.tiles,
-            rackTiles = rack.tiles,
-            boardTiles = board.slots.tile,
-            allTiles = bagTiles->union(rackTiles->union(boardTiles))
-                ->excluding(null)
-        in allTiles->forAll(t1, t2|
-            t1.getLetter().equals(t2.getLetter()) implies
-            t1.getPoints() = t2.getPoints())
+    inv consistentTilePointValues: tilePointsAreValid()
 
     -- must be a fixed set of tiles in circulation for a given match
-    inv fixedNumberOfLettersInMatch:
-        let
-            bagLetters = board.tileBag.tiles.letter->asSet(),
-            rackLetters = rack.tiles.letter->asSet(),
-            boardLetters = board.slots.tile.letter->asSet(),
-            allTiles = bagLetters->union(rackLetters->union(boardLetters))
-                ->excluding(null),
-            count = allTiles->iterate(
-                char; cnt:Tuple(a: Integer, b: Integer, c: Integer,
-                d: Integer, e: Integer, f: Integer, g: Integer, h: Integer,
-                i: Integer, j: Integer, k: Integer, l: Integer, m: Integer,
-                n: Integer, o: Integer, p: Integer, q: Integer, r: Integer,
-                s: Integer, t: Integer, u: Integer, v: Integer, w: Integer,
-                x: Integer, y: Integer, z: Integer) =
-                Tuple{a = 0, b = 0, c = 0, d = 0, e = 0, f = 0, g = 0,
-                h = 0, i = 0, j = 0, k = 0, l = 0, m = 0, n = 0, o = 0,
-                p = 0, q = 0, r = 0, s = 0, t = 0, u = 0, v = 0, w = 0,
-                x = 0, y = 0, z = 0} |
-                    Tuple{
-                    a = if char.letter = 'A' then cnt.a + 1 else cnt.a endif,
-                    b = if char.letter = 'B' then cnt.b + 1 else cnt.b endif,
-                    c = if char.letter = 'C' then cnt.c + 1 else cnt.c endif,
-                    d = if char.letter = 'D' then cnt.d + 1 else cnt.d endif,
-                    e = if char.letter = 'E' then cnt.e + 1 else cnt.e endif,
-                    f = if char.letter = 'F' then cnt.f + 1 else cnt.f endif,
-                    g = if char.letter = 'G' then cnt.g + 1 else cnt.g endif,
-                    h = if char.letter = 'H' then cnt.h + 1 else cnt.h endif,
-                    i = if char.letter = 'I' then cnt.i + 1 else cnt.i endif,
-                    j = if char.letter = 'J' then cnt.j + 1 else cnt.j endif,
-                    k = if char.letter = 'K' then cnt.k + 1 else cnt.k endif,
-                    l = if char.letter = 'L' then cnt.l + 1 else cnt.l endif,
-                    m = if char.letter = 'M' then cnt.m + 1 else cnt.m endif,
-                    n = if char.letter = 'N' then cnt.n + 1 else cnt.n endif,
-                    o = if char.letter = 'O' then cnt.o + 1 else cnt.o endif,
-                    p = if char.letter = 'P' then cnt.p + 1 else cnt.p endif,
-                    q = if char.letter = 'Q' then cnt.q + 1 else cnt.q endif,
-                    r = if char.letter = 'R' then cnt.r + 1 else cnt.r endif,
-                    s = if char.letter = 'S' then cnt.s + 1 else cnt.s endif,
-                    t = if char.letter = 'T' then cnt.t + 1 else cnt.t endif,
-                    u = if char.letter = 'U' then cnt.u + 1 else cnt.u endif,
-                    v = if char.letter = 'V' then cnt.v + 1 else cnt.v endif,
-                    w = if char.letter = 'W' then cnt.w + 1 else cnt.w endif,
-                    x = if char.letter = 'X' then cnt.x + 1 else cnt.x endif,
-                    y = if char.letter = 'Y' then cnt.y + 1 else cnt.y endif,
-                    z = if char.letter = 'Z' then cnt.z + 1 else cnt.z endif}
-                )
-        in (count.a = 9 and count.b = 2 and count.c = 2 and count.d = 4 and
-            count.e = 12 and count.f = 2 and count.g = 3 and count.h = 2 and
-            count.i = 9 and count.j = 1 and count.k = 1 and count.l = 4 and
-            count.m = 2 and count.n = 6 and count.o = 8 and count.p = 2 and
-            count.q = 1 and count.r = 6 and count.s = 4 and count.t = 6 and
-            count.u = 4 and count.v = 2 and count.w = 2 and count.x = 1 and
-            count.y = 2 and count.z = 1)
+    inv fixedNumberOfLettersInMatch: tileCountIsValid()
 
-    -- Players must be similar rank
-    inv similarRank:
+    -- Players must be similar rank for matches where players were assigned by
+    -- the system
+    inv similarRank: matchReq->size() = 0 implies
         players.rank->forAll(p1, p2 |
             (type = #RANKED and (p1.placement - p2.placement).abs() <= 100) or
-            (matchReq->size() = 0 implies
-                (p1.placement - p2.placement).abs() <= 200)
+            (p1.placement - p2.placement).abs() <= 200
         )
 
     -- Once a match ends no additional plays can be made
