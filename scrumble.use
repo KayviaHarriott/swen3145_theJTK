@@ -696,34 +696,24 @@ operations
     --! @param Observable o The observable that called the method
     update(o: Observable)
     begin
-        --chat
-        --p2.oclIsTypeOf(Player)
-        if (o.oclIsKindOf(Chat)) then
-           --declare c: Chat;
-           --c := o;
-           --self.updateHelperChat(c);
-            
+        if (o.oclAsType(Chat) = true) then
+           self.updateHelperChat(o.oclAsType(Chat)); 
         end;
 
-        --request
         if (o.oclIsTypeOf(Request)) then
-            --declare d: Integer;
+           self.updateHelperRequest(o.oclAsType(Request)); 
         end;
 
-        --report
         if (o.oclIsTypeOf(Report)) then
-            --declare d: Integer;
+           self.updateHelperReport(o.oclAsType(Report)); 
         end;
 
-        --matchrequest
         if (o.oclIsTypeOf(MatchRequest)) then
-            --declare d: Integer;
+           self.updateHelperMatchRequest(o.oclAsType(MatchRequest)); 
         end;        
 
-        --like a switch for the different types of observables
-        
     end
-    pre : true
+    pre : o <> null
     post : true
     -- #TODO Pre and Post
 
@@ -815,7 +805,7 @@ operations
     --! @brief update helper function for matchRequest events
     --!
     --! @param MatchRequest o The MatchRequest that called the update method
-    updateHelperMatchReq(o: MatchRequest)
+    updateHelperMatchRequest(o: MatchRequest)
     begin
         --declare 
     end
