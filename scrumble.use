@@ -1,8 +1,8 @@
 ------------------------------------------------------------------------------
 --! @authors: Jason Hunter, Kayvia Harriott, Tashna-Gail Williams
 --! Created on: 2021-10-11
---! @version: 0.4.9
---! Last Updated: 2021-11-29 03:01:00
+--! @version: 0.5.2
+--! Last Updated: 2021-11-29 21:21:21
 ------------------------------------------------------------------------------
 
 model scrumble
@@ -719,20 +719,20 @@ operations
     update(o: Observable)
     begin
         if (o.oclAsType(Chat) = true) then
-           self.updateHelperChat(o.oclAsType(Chat)); 
+           self.updateHelperChat(o.oclAsType(Chat));
         end;
 
         if (o.oclIsTypeOf(Request)) then
-           self.updateHelperRequest(o.oclAsType(Request)); 
+           self.updateHelperRequest(o.oclAsType(Request));
         end;
 
         if (o.oclIsTypeOf(Report)) then
-           self.updateHelperReport(o.oclAsType(Report)); 
+           self.updateHelperReport(o.oclAsType(Report));
         end;
 
         if (o.oclIsTypeOf(MatchRequest)) then
-           self.updateHelperMatchRequest(o.oclAsType(MatchRequest)); 
-        end;        
+           self.updateHelperMatchRequest(o.oclAsType(MatchRequest));
+        end;
 
     end
     pre : o <> null
@@ -769,7 +769,7 @@ operations
     end
     pre : o.type = #RANKED
     pre : o.status = #COMPLETE or o.status = #ABANDONED
-    post : true    
+    post : true
     -- for the body we could generate a decimal value based on the difference
     -- in the players' ranks, the time it took to end the game, average points
     -- per play, average time per play
@@ -792,7 +792,7 @@ operations
     pre closedChat: chatState
         ->select(cs | cs.status = #OPEN)->size() = 0 -- chat must be closed
     post : true --notification exists
-    
+
 
     --! updateHelperRequest doc
     --! @brief update helper function for request events
@@ -801,7 +801,7 @@ operations
     updateHelperRequest(o: Request)
     begin
         declare r: Request;
-        r.init(o.status, o.sentDate,o.activePeriod,o.type);               
+        r.init(o.status, o.sentDate,o.activePeriod,o.type);
     end
     pre : true
     post : true
@@ -826,7 +826,7 @@ operations
     --! @param MatchRequest o The MatchRequest that called the update method
     updateHelperMatchRequest(o: MatchRequest)
     begin
-        --declare 
+        --declare
     end
     pre : true
     post : true
@@ -915,11 +915,11 @@ operations
     --! @brief Adds a player to the player's blocked list
     --!
     --! @param Player p The player to be blocked
-    blockPlayer(p: Player)    
+    blockPlayer(p: Player)
     begin
         declare b: Block, d: DateTime;
         -- check blocked list doesn't have player
-        --let 
+        --let
         --    blockedList = block[player]
         --        ->select(b | b.status = #BLOCKED).blocked
         --in blockedList->excludes(p)
@@ -933,7 +933,7 @@ operations
     --    b := block->any(b | b.blocked = p);
     --    b.block();
     end
-    pre: true -- self.status = #UNBLOCKED    
+    pre: true -- self.status = #UNBLOCKED
     post: true
 
 
@@ -965,7 +965,7 @@ operations
     post : true
 
 
- 
+
     --post playerBlocked: block[player]->exists(b|
     -- b.blocked->asSet() = Set{p} and b.status = #BLOCKED and
     -- b.date.equalsNow())
@@ -1066,7 +1066,7 @@ operations
     --! initialise doc
     --! @brief Initialises the player instance
     --!
-    --! @param Type paramname Description    
+    --! @param Type paramname Description
     initialise(u: String, e: String, d: DateTime, l: Leaderboard)
     begin
         self.username := u;
@@ -1076,12 +1076,12 @@ operations
         new Rank() between (l, self);
     end
 
-    --check that username does not exist 
+    --check that username does not exist
     pre : true
     post : true
 
     ---------------------------------Accessors--------------------------------
- 
+
     getUsername(): String = username
     getEmail(): String = email
     getScore(): Integer = score
@@ -1206,7 +1206,7 @@ operations
         self.deliverytime := d;
         self.dismissed := false;
     end
-    
+
 statemachines
     psm notificationStates
     states
