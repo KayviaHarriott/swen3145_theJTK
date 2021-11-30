@@ -722,78 +722,70 @@ operations
     begin
         if (o.oclIsTypeOf(Chat) = true) then
             self.updateHelperChat(o.oclAsType(Chat));
-        end;
-
-        if (o.oclIsTypeOf(Request)) then
+        else if (o.oclIsTypeOf(Request)) then
             self.updateHelperRequest(o.oclAsType(Request));
-        end;
-
-        if (o.oclIsTypeOf(Report)) then
+        else if (o.oclIsTypeOf(Report)) then
             self.updateHelperReport(o.oclAsType(Report));
-        end;
-
-        if (o.oclIsTypeOf(MatchRequest)) then
+        else if (o.oclIsTypeOf(MatchRequest)) then
             self.updateHelperMatchRequest(o.oclAsType(MatchRequest));
-        end;
-
+        end; end; end; end;
     end
-    pre : o <> null
-    post : true
 
+    pre argIsValid: o <> null
+    post noPost: true
 
     --! updateHelperMatch doc
-    --! @brief Updates the player's score if a ranked match was completed
-    --!        or abandoned
+    --! @brief Notifies the player of a match event if they don't have the
+    --!        match opened
     --!
     --! @param Match o The match that called the update method
     updateHelperMatch(o: Match)
     begin
-
-        --check if game complete
-        if (o.status = #COMPLETE) then
-            -- if timed
-            if (o.timed = true) then
-                -- add points to winner
-                --subtract points from loser
-            end;
+        declare n: Notification;
+        -- check if match is closed
+        if (o.rack->any(r | r.players = self).matchOpen = false) then
+            n := new Notification();
+            n.init(self, o.oclAsType(Observable));
         end;
-
-        if (o.status = #ABANDONED) then
-            --player that abandoned should be minus
-            --o.players
-        end;
-
-        --check if player won
-        --add to players score
-        --self.score := self.score + 25;
-        -- o.status := #COMPLETE
-
     end
-    pre : o.type = #RANKED
-    pre : o.status = #COMPLETE or o.status = #ABANDONED
-    post : true
-    -- for the body we could generate a decimal value based on the difference
-    -- in the players' ranks, the time it took to end the game, average points
-    -- per play, average time per play
-    -- we could cap the amount your score increases to +/- 25 points
-    -- #TODO Pre and Post
+
+    pre noPre: true
+    post notifCreated:
+        let
+            diff = notifs - notifs@pre
+        in (o.rack->any(r | r.players = self).matchOpen = false) implies
+            (diff->forAll(n | n.oclIsNew() = true and n.event = o) and
+            diff->size() = 1)
 
     --! updateHelperChat doc
     --! @brief update helper function for chat events
     --!
     --! @param Chat o The Chat that called the update method
-    --when observer needs to be update the observable would called observer and
-    --
     updateHelperChat(o: Chat)
     begin
-        declare n: Notification, d: DateTime;
-        --d.equalsNow();
-        n.init(d);
+        declare n: Notification;
+        -- check if chat is closed
+        if (o.chatState->any(cs | cs.participants = self).status = #CLOSED)
+        then
+            n := new Notification();
+            n.init(p, o.oclAsType(Observable));
+        end;
     end
 
+    -- I'm not so sure if it's a good idea to restrict it to running if the
+    -- chat is closed. By the way that select returns a set of ChatStates not
+    -- just one and enforcing that the size be 0 means that they can't have
+    -- any chats at all open for the method to run (ie they can't receive
+    -- notifs if they have any one of their chats open)
     pre closedChat: chatState
         ->select(cs | cs.status = #OPEN)->size() = 0 -- chat must be closed
-    post : true --notification exists
+    post notifCreated:
+        let
+            diff = notifs - notifs@pre
+        in (o.chatState->any(cs | cs.participants = self).status = #CLOSED)
+            implies
+                (diff->forAll(n | n.oclIsNew() = true and n.event = o) and
+                diff->size() = 1)
 
 
     --! updateHelperRequest doc
@@ -805,8 +797,8 @@ operations
         declare r: Request;
         r.init(o.status, o.sentDate,o.activePeriod,o.type);
     end
-    pre : true
-    post : true
+    pre noPre: true
+    post noPost: true
     -- #TODO Pre and Post
 
     --! updateHelperReport doc
@@ -818,8 +810,8 @@ operations
         declare re: Report;
         --re.init(o.type, o.description, self);
     end
-    pre : true
-    post : true
+    pre noPre: true
+    post noPost: true
     -- #TODO Pre and Post
 
     --! updateHelperMatchReq doc
@@ -830,8 +822,8 @@ operations
     begin
         --declare
     end
-    pre : true
-    post : true
+    pre noPre: true
+    post noPost: true
     -- #TODO Pre and Post
 
     --! joinQueue doc
@@ -946,7 +938,7 @@ operations
         let
             b = block[player]->any(b | b.blocked = p)
         in b = null or b.status = #UNBLOCKED
-    post : true --playerBlocked: block[player]->exists(b |
+    post noPost: true --playerBlocked: block[player]->exists(b |
         --b.blocked = p and b.status = #BLOCKED and
         --b.date.equalsNow())
 
@@ -965,7 +957,7 @@ operations
         --d := Block() between(p, self);
     end
     pre playerExists: p <> null
-    post : true
+    post noPost: true
 
 
 
@@ -1039,15 +1031,23 @@ operations
             openedChat = cs.chatRooms->asSet() and
             cs.status = #CLOSED and cs.lastOpened.equalsNow())
 
-    -- We don't have state tracking for what match is open or closed yet
-    -- Opens the specified match
-    --openMatch(m: Match)
-    -- #TODO Pre and Post
+    --! openMatch doc
+    --! @brief Opens the specified match
+    --!
+    --! @param Match m The match to be opened
+    openMatch(m: Match)
+    begin self.rack->any(r | r.matchHistory = m).matchOpen := true; end
+    pre matchClosed: rack->any(r | r.matchHistory = m).matchOpen = false
+    post matchOpened: rack->any(r | r.matchHistory = m).matchOpen = true
 
-    -- We don't have state tracking for what match is open or closed yet
-    -- Closes the specified match
-    --closeMatch(m: Match)
-    -- #TODO Pre and Post
+    --! closeMatch doc
+    --! @brief Closes the specified match
+    --!
+    --! @param Match m The match to be opened
+    closeMatch(m: Match)
+    begin self.rack->any(r | r.matchHistory = m).matchOpen := false; end
+    pre matchOpened: rack->any(r | r.matchHistory = m).matchOpen = true
+    post matchClosed: rack->any(r | r.matchHistory = m).matchOpen = false
 
     --! openApp doc
     --! @brief Executes actions that should occur once the player opens the
@@ -1080,8 +1080,8 @@ operations
     end
 
     --check that username does not exist
-    pre : true
-    post : true
+    pre noPre: true
+    post noPost: true
 
     ---------------------------------Accessors--------------------------------
 
@@ -1164,16 +1164,31 @@ attributes
     deliverytime: DateTime
     dismissed: Boolean init: false
 operations
+    --! init doc
+    --! @brief Initializes the notification instance
+    --!
+    --! @param Player p The player to be notified
+    --! @param Observable o The object involved in the event
+    init(p: Player, o: Observable)
+    begin
+        insert (self, p) into Notify;
+        insert (self, o) into Signal;
+
+        self.deliverytime = new DateTime();
+        insert (self.deliverytime, p.user.scrumble.clock.time)
+            into CurrentTime;
+        self.deliverytime.setToNow();
+    end
+
+    pre argsAreValid: p <> null and o <> null
+    post initSuccess: player = p and event = o and deliverytime.equalsNow()
+
     --! dismiss doc
     --! @brief Marks the notification as dismissed
     dismiss()
-    begin
-        self.dismissed := true;
-    end
-
-    -- #TODO Pre and Post
-    --pre :
-    --post :
+    begin self.dismissed := true; end
+    pre noPre: true
+    post noPost: true
 
     --! gotoAndDismiss doc
     --! @brief Opens the app to the relevant view then dismisses the
@@ -1381,8 +1396,8 @@ operations
         self.activePeriod := ap;
         self.type := t;
     end
-    pre : true
-    post : true
+    pre noPre: true
+    post noPost: true
 statemachines
     psm requestStates
     states
@@ -1434,15 +1449,15 @@ operations
     end
 
     -- #TODO Pre and Post
-    --pre :
-    --post :
+    --pre noPre: true
+    --post noPost: true
 
     --! unblock doc
     --! @brief Mark a player as unblocked
     unblock()
     begin self.status := #UNBLOCKED; end
-    --pre :
-    --post :
+    --pre noPre: true
+    --post noPost: true
     -- #TODO Pre and Post
 
 
@@ -1757,6 +1772,8 @@ associationclass Rack
 between
     Player[2] role players
     Match[*] role matchHistory ordered
+attributes
+    matchOpen: Boolean init: false
 operations
     --! drawTiles doc
     --! @brief Tells the match instance to gets a random set of tiles to fill
