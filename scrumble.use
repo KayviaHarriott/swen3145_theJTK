@@ -715,7 +715,7 @@ operations
     end
     pre : o <> null
     post : true
-    -- #TODO Pre and Post
+
 
     --! updateHelperMatch doc
     --! @brief Updates the player's score if a ranked match was completed
@@ -724,32 +724,29 @@ operations
     --! @param Match o The match that called the update method
     updateHelperMatch(o: Match)
     begin
-        --check if game ongoing
-        --o.status = #INPROGRESS
-        if (true) then
-            --declare d: Integer;            
-        end;
 
         --check if game complete
-        --o.status = #COMPLETED
-        if (true) then
-            --declare d: Integer;
-            
+        if (o.status = #COMPLETE) then
+            -- if timed
+            if (o.timed = true) then
+                -- add points to winner
+                --subtract points from loser
+            end;
         end;
 
-        --check if abandoned
-        --o.status = #ABANDONED
-        if (true) then
-            --declare d: Integer;
-            
+        if (o.status = #ABANDONED) then
+            --player that abandoned should be minus
+           --o.players
         end;
+
         --check if player won
         --add to players score
-        self.score := self.score + 25;
+        --self.score := self.score + 25;
         -- o.status := #COMPLETE
 
     end
     pre : o.type = #RANKED
+    pre : o.status = #COMPLETE or o.status = #ABANDONED
     post : true    
     -- for the body we could generate a decimal value based on the difference
     -- in the players' ranks, the time it took to end the game, average points
