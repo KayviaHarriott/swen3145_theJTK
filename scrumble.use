@@ -698,10 +698,10 @@ operations
     begin
         --chat
         --p2.oclIsTypeOf(Player)
-        if (o.oclIsTypeOf(Chat)) then
-           -- declare c: Chat;
-           -- c := o;
-            --self.updateHelperChat(c);
+        if (o.oclIsKindOf(Chat)) then
+           --declare c: Chat;
+           --c := o;
+           --self.updateHelperChat(c);
             
         end;
 
@@ -791,6 +791,8 @@ operations
     --! @param Request o The Request that called the update method
     updateHelperRequest(o: Request)
     begin
+        declare r: Request;
+        r.init(o.status, o.sentDate,o.activePeriod,o.type);               
     end
     pre : true
     post : true
@@ -800,9 +802,10 @@ operations
     --! @brief update helper function for report events
     --!
     --! @param Report o The Report that called the update method
-
     updateHelperReport(o: Report)
     begin
+        declare re: Report;
+        --re.init(o.type, o.description, self);
     end
     pre : true
     post : true
@@ -814,6 +817,7 @@ operations
     --! @param MatchRequest o The MatchRequest that called the update method
     updateHelperMatchReq(o: MatchRequest)
     begin
+        --declare 
     end
     pre : true
     post : true
@@ -1356,6 +1360,17 @@ operations
     pre isPending: status = #PENDING
     post statusUpdated: status = #LOST
     post notActivated: activePeriod = null
+
+
+    init(s: RequestStatus, sd: DateTime,ap: Period,t: RequestType)
+    begin
+        self.status := s;
+        self.sentDate := sd;
+        self.activePeriod := ap;
+        self.type := t;
+    end
+    pre : true
+    post : true
 statemachines
     psm requestStates
     states
@@ -1385,6 +1400,7 @@ operations
     pre isPending: status = #PENDING
     post statusUpdated: status = #ACCEPTED
     post newMatchCreated: match->size() = 1
+
 end -- MatchRequest Class
 
 associationclass Block
@@ -1416,6 +1432,8 @@ operations
     --pre :
     --post :
     -- #TODO Pre and Post
+
+
 end -- Block Association Class
 
 class Report < Observable
