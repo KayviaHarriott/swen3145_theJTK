@@ -717,7 +717,27 @@ operations
     --!
     --! @param Observable o The observable that called the method
     update(o: Observable)
-    -- #TODO Pre and Post
+    begin
+        if (o.oclAsType(Chat) = true) then
+           self.updateHelperChat(o.oclAsType(Chat)); 
+        end;
+
+        if (o.oclIsTypeOf(Request)) then
+           self.updateHelperRequest(o.oclAsType(Request)); 
+        end;
+
+        if (o.oclIsTypeOf(Report)) then
+           self.updateHelperReport(o.oclAsType(Report)); 
+        end;
+
+        if (o.oclIsTypeOf(MatchRequest)) then
+           self.updateHelperMatchRequest(o.oclAsType(MatchRequest)); 
+        end;        
+
+    end
+    pre : o <> null
+    post : true
+
 
     --! updateHelperMatch doc
     --! @brief Updates the player's score if a ranked match was completed
@@ -725,6 +745,31 @@ operations
     --!
     --! @param Match o The match that called the update method
     updateHelperMatch(o: Match)
+    begin
+
+        --check if game complete
+        if (o.status = #COMPLETE) then
+            -- if timed
+            if (o.timed = true) then
+                -- add points to winner
+                --subtract points from loser
+            end;
+        end;
+
+        if (o.status = #ABANDONED) then
+            --player that abandoned should be minus
+           --o.players
+        end;
+
+        --check if player won
+        --add to players score
+        --self.score := self.score + 25;
+        -- o.status := #COMPLETE
+
+    end
+    pre : o.type = #RANKED
+    pre : o.status = #COMPLETE or o.status = #ABANDONED
+    post : true    
     -- for the body we could generate a decimal value based on the difference
     -- in the players' ranks, the time it took to end the game, average points
     -- per play, average time per play
@@ -735,14 +780,31 @@ operations
     --! @brief update helper function for chat events
     --!
     --! @param Chat o The Chat that called the update method
+    --when observer needs to be update the observable would called observer and
+    --
     updateHelperChat(o: Chat)
-    -- #TODO Pre and Post
+    begin
+        declare n: Notification, d: DateTime;
+        --d.equalsNow();
+        n.init(d);
+    end
+
+    pre closedChat: chatState
+        ->select(cs | cs.status = #OPEN)->size() = 0 -- chat must be closed
+    post : true --notification exists
+    
 
     --! updateHelperRequest doc
     --! @brief update helper function for request events
     --!
     --! @param Request o The Request that called the update method
     updateHelperRequest(o: Request)
+    begin
+        declare r: Request;
+        r.init(o.status, o.sentDate,o.activePeriod,o.type);               
+    end
+    pre : true
+    post : true
     -- #TODO Pre and Post
 
     --! updateHelperReport doc
@@ -750,13 +812,24 @@ operations
     --!
     --! @param Report o The Report that called the update method
     updateHelperReport(o: Report)
+    begin
+        declare re: Report;
+        --re.init(o.type, o.description, self);
+    end
+    pre : true
+    post : true
     -- #TODO Pre and Post
 
     --! updateHelperMatchReq doc
     --! @brief update helper function for matchRequest events
     --!
     --! @param MatchRequest o The MatchRequest that called the update method
-    updateHelperMatchReq(o: MatchRequest)
+    updateHelperMatchRequest(o: MatchRequest)
+    begin
+        --declare 
+    end
+    pre : true
+    post : true
     -- #TODO Pre and Post
 
     --! joinQueue doc
@@ -842,15 +915,27 @@ operations
     --! @brief Adds a player to the player's blocked list
     --!
     --! @param Player p The player to be blocked
-    blockPlayer(p: Player)
-    --begin
+    blockPlayer(p: Player)    
+    begin
+        declare b: Block, d: DateTime;
+        -- check blocked list doesn't have player
+        --let 
+        --    blockedList = block[player]
+        --        ->select(b | b.status = #BLOCKED).blocked
+        --in blockedList->excludes(p)
+        b := new Block() between (p, self);
+        d := new DateTime();
+        b.date := d;
     --    if (blocked[player]->excludes(p)) then
     --        new Block() between (self, p);
     --    end;
 
     --    b := block->any(b | b.blocked = p);
     --    b.block();
-    --end
+    end
+    pre: true -- self.status = #UNBLOCKED    
+    post: true
+
 
     pre playerIsOnline: status = #ONLINE
     pre argIsValid: p <> null
@@ -858,9 +943,9 @@ operations
         let
             b = block[player]->any(b | b.blocked = p)
         in b = null or b.status = #UNBLOCKED
-    post playerBlocked: block[player]->exists(b |
-        b.blocked = p and b.status = #BLOCKED and
-        b.date.equalsNow())
+    post : true --playerBlocked: block[player]->exists(b |
+        --b.blocked = p and b.status = #BLOCKED and
+        --b.date.equalsNow())
 
     --! unblockPlayer doc
     --! @brief Unblocks a player
@@ -871,6 +956,20 @@ operations
     --    b := block->any(b | b.blocked = p);
     --    b.unblock();
     --end
+    begin
+        delete (p,self) from Block;
+        --declare d: Block;
+        --d := Block() between(p, self);
+    end
+    pre playerExists: p <> null
+    post : true
+
+
+ 
+    --post playerBlocked: block[player]->exists(b|
+    -- b.blocked->asSet() = Set{p} and b.status = #BLOCKED and
+    -- b.date.equalsNow())
+
 
     pre playerIsOnline: status = #ONLINE
     pre argIsValid: p <> null
@@ -964,6 +1063,30 @@ operations
     post statusUpdated: status = #OFFLINE
 
     -- #TODO Methods to set the status to away
+    --! initialise doc
+    --! @brief Initialises the player instance
+    --!
+    --! @param Type paramname Description    
+    initialise(u: String, e: String, d: DateTime, l: Leaderboard)
+    begin
+        self.username := u;
+        self.email := e;
+        self.dob := d;
+        self.score := 500;
+        new Rank() between (l, self);
+    end
+
+    --check that username does not exist 
+    pre : true
+    post : true
+
+    ---------------------------------Accessors--------------------------------
+ 
+    getUsername(): String = username
+    getEmail(): String = email
+    getScore(): Integer = score
+    getStatus(): PlayerStatus = status
+
 statemachines
     psm playerStates
     states
@@ -1074,6 +1197,16 @@ operations
     --! @brief gotoAndDismiss helper for report event notifications
     gotoReportHelper()
     -- #TODO Pre and Post
+
+    --! init doc
+    --! @brief Initializes the notification
+    --! @param DateTime d Date and time of notification
+    init(d: DateTime)
+    begin
+        self.deliverytime := d;
+        self.dismissed := false;
+    end
+    
 statemachines
     psm notificationStates
     states
@@ -1236,6 +1369,17 @@ operations
     pre isPending: status = #PENDING
     post statusUpdated: status = #LOST
     post notActivated: activePeriod = null
+
+
+    init(s: RequestStatus, sd: DateTime,ap: Period,t: RequestType)
+    begin
+        self.status := s;
+        self.sentDate := sd;
+        self.activePeriod := ap;
+        self.type := t;
+    end
+    pre : true
+    post : true
 statemachines
     psm requestStates
     states
@@ -1265,6 +1409,7 @@ operations
     pre isPending: status = #PENDING
     post statusUpdated: status = #ACCEPTED
     post newMatchCreated: match->size() = 1
+
 end -- MatchRequest Class
 
 associationclass Block
@@ -1296,6 +1441,8 @@ operations
     --pre :
     --post :
     -- #TODO Pre and Post
+
+
 end -- Block Association Class
 
 class Report < Observable

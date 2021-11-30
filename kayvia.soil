@@ -1,0 +1,17 @@
+reset
+
+!new DateTime('d1')
+!new DateTime('d2')
+!new Player('p1')
+!p1.status := PlayerStatus::ONLINE
+!p1.username := 'kayvia'
+!p1.email := 'kh@hotmail.com'
+!p1.dob := d1
+!new Player('p2')
+!p2.username := 'amanda'
+!p2.email := 'amah@hotmail.com'
+!p2.status := PlayerStatus::ONLINE
+!p2.state := ProfileState::PUBLIC
+!p2.dob := d2
+
+!p1.blockPlayer(p2)
