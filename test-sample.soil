@@ -13,8 +13,6 @@
 
 reset
 
-reset
-
 !new Scrumble ('scrumble')
 
 !new Clock('clk')

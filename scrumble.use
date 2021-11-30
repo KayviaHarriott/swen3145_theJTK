@@ -105,15 +105,17 @@ operations
     update(o: Observable)
     -- #TODO Pre and Post
     pre argIsValid: o <> null
+    post noPost: true
 end -- Observer Class
 
 abstract class Observable
+operations
     --! notify doc
     --! @brief Loops through all the observers and calls update for each of
     --!        them
-    --notify()
-    --pre hasObservers: not observers->isEmpty()
-    --post noPost: true
+    notify()
+    pre hasObservers: not observer->isEmpty()
+    post noPost: true
 end -- Observable Class
 
 -----------------------------------Datatypes----------------------------------
@@ -718,20 +720,20 @@ operations
     --! @param Observable o The observable that called the method
     update(o: Observable)
     begin
-        if (o.oclAsType(Chat) = true) then
-           self.updateHelperChat(o.oclAsType(Chat));
+        if (o.oclIsTypeOf(Chat) = true) then
+            self.updateHelperChat(o.oclAsType(Chat));
         end;
 
         if (o.oclIsTypeOf(Request)) then
-           self.updateHelperRequest(o.oclAsType(Request));
+            self.updateHelperRequest(o.oclAsType(Request));
         end;
 
         if (o.oclIsTypeOf(Report)) then
-           self.updateHelperReport(o.oclAsType(Report));
+            self.updateHelperReport(o.oclAsType(Report));
         end;
 
         if (o.oclIsTypeOf(MatchRequest)) then
-           self.updateHelperMatchRequest(o.oclAsType(MatchRequest));
+            self.updateHelperMatchRequest(o.oclAsType(MatchRequest));
         end;
 
     end
@@ -758,7 +760,7 @@ operations
 
         if (o.status = #ABANDONED) then
             --player that abandoned should be minus
-           --o.players
+            --o.players
         end;
 
         --check if player won
@@ -917,21 +919,22 @@ operations
     --! @param Player p The player to be blocked
     blockPlayer(p: Player)
     begin
-        declare b: Block, d: DateTime;
-        -- check blocked list doesn't have player
-        --let
-        --    blockedList = block[player]
-        --        ->select(b | b.status = #BLOCKED).blocked
-        --in blockedList->excludes(p)
-        b := new Block() between (p, self);
-        d := new DateTime();
-        b.date := d;
-    --    if (blocked[player]->excludes(p)) then
-    --        new Block() between (self, p);
-    --    end;
+        declare
+            b: Block,
+            d: DateTime,
+            bList: Set(Player);
 
-    --    b := block->any(b | b.blocked = p);
-    --    b.block();
+        -- Check that blocked list doesn't have player
+        bList := self.block[player]
+            ->select(b | b.status = #BLOCKED).blocked->asSet();
+        if bList->excludes(p) then
+            b := new Block() between (self, p);
+            d := new DateTime();
+            b.date := d;
+        end;
+
+        b := self.block[player]->any(b | b.blocked = p);
+        b.block();
     end
     pre: true -- self.status = #UNBLOCKED
     post: true
@@ -1587,7 +1590,7 @@ operations
         p2R.drawTiles();
     end
 
-    pre argsAreValid: p1 <> null and p2 <> null and m <> null
+    pre argsAreValid: p1 <> null and p2 <> null and p1 <> p2 and m <> null
     post noPost: true
 
     --! buildRankedMatch doc
@@ -1607,7 +1610,7 @@ operations
         result := m;
     end
 
-    pre argsAreValid: p1 <> null and p2 <> null
+    pre argsAreValid: p1 <> null and p2 <> null and p1 <> p2
     post hasDuration: result.duration <> null
     post isRanked: result.type = #RANKED
     post isTimed: result.timed = true
@@ -1631,7 +1634,7 @@ operations
         result := m;
     end
 
-    pre argsAreValid: p1 <> null and p2 <> null
+    pre argsAreValid: p1 <> null and p2 <> null and p1 <> p2
     post hasDuration: result.duration <> null
     post isRanked: result.type = #UNRANKED
     post isTimed: result.timed = true
@@ -1655,7 +1658,7 @@ operations
         result := m;
     end
 
-    pre argsAreValid: p1 <> null and p2 <> null
+    pre argsAreValid: p1 <> null and p2 <> null and p1 <> p2
     post hasDuration: result.duration <> null
     post isRanked: result.type = #UNRANKED
     post isTimed: result.timed = false
@@ -1683,14 +1686,44 @@ operations
 end -- MatchFactory Class
 
 class Queue < Observable
+attributes
+    matchType: MatchType
+    timed: Boolean
 operations
     --! matchmaking doc
-    --! @brief Creates matches between players
+    --! @brief Triggers the creation of matches between players in the queue
     matchmaking()
-    -- I'm thinking of having the method be recursive to allow it to loop
-    -- until all players
-    -- I'm also thinking of just having it be called at the start of the
-    -- system and running for the lifetime of the system
+    begin
+        declare
+            m: Match,
+            p1: Player,
+            p2: Player,
+            rankDiff: Integer,
+            allPlayers: Sequence(Player);
+
+        allPlayers := self.join
+            ->sortedBy(j | j.joinedAt.secondsSinceEposh)
+            ->reverse().players;
+        for i in Sequence{1..allPlayers->size()} do
+            for j in Sequence{(i+1)..allPlayers->size()} do
+                p1 := allPlayers->at(i);
+                destroy self.join->any(j | j.players = p1);
+                p2 := allPlayers->at(j);
+                destroy self.join->any(j | j.players = p2);
+
+                rankDiff := (p1.rank.placement - p2.rank.placement).abs();
+                if (self.matchType = #RANKED and rankDiff <= 100) or
+                    (self.matchType <> #RANKED and rankDiff <= 200)
+                then
+                    m := self.scrumble.mFactory.getMatch(p1, p2,
+                        self.matchType, self.timed);
+                    p1.update(self);
+                    p2.update(self);
+                end;
+            end;
+        end;
+    end
+
     pre playersInQueue: not players->isEmpty()
     --post: check that the queue is empty or the remaining players are
     -- unmatchable
@@ -1701,11 +1734,23 @@ between
     Queue[*] role queues
     Player[*] role players
 attributes
-    matchType: MatchType
-    timed: Boolean
     joinedAt: DateTime
 operations
-    --
+    --! init doc
+    --! @brief Initializes the Join instance and triggers the matchmaking
+    --!        method in the queue
+    init()
+    begin
+        self.joinedAt := new DateTime();
+        insert (self.joinedAt, self.queues.scrumble.clock.time)
+            into CurrentTime;
+        self.queues.matchmaking();
+    end
+
+    -- Not sure if checking that the roles aren't empty is a valid
+    -- precondition
+    pre noPre: true
+    post noPost:true
 end -- Join Association Class
 
 associationclass Rack
@@ -2889,6 +2934,11 @@ association ScrumbleMatchFactory between
     MatchFactory[1] role mFactory
 end -- ScrumbleMatchFactory Association
 
+association ScrumbleQueue between
+    Scrumble[1]
+    Queue[1]
+end -- ScrumbleQueue Association
+
 --------------------------------------ACL-------------------------------------
 
 association UserRole between
@@ -3315,10 +3365,10 @@ context Report
 
 -------------------------------------Game-------------------------------------
 
-context Join
+context Queue
     -- Only unranked matches may be untimed
     inv noUntimedRankedMatches: matchType = #RANKED implies timed
--- End Join Constraints
+-- End Queue Constraints
 
 context Rack
     -- No empty spaces unless there are no more tiles in the tileBag
