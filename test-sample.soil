@@ -155,6 +155,90 @@ reset
 !for c in spelling.characters() do l := new Letter(); l.letter := c; insert (flank, l) into Spelling; end;
 !insert (dict, flank) into ValidWord
 
+!new Word('guinea')
+!spelling := 'GUINEA'
+!guinea.category := #NONE
+!for c in spelling.characters() do l := new Letter(); l.letter := c; insert (guinea, l) into Spelling; end;
+!insert (dict, guinea) into ValidWord
+
+!new Word('quoted')
+!spelling := 'QUOTED'
+!quoted.category := #NONE
+!for c in spelling.characters() do l := new Letter(); l.letter := c; insert (quoted, l) into Spelling; end;
+!insert (dict, quoted) into ValidWord
+
+!new Word('tibia')
+!spelling := 'TIBIA'
+!tibia.category := #NONE
+!for c in spelling.characters() do l := new Letter(); l.letter := c; insert (tibia, l) into Spelling; end;
+!insert (dict, tibia) into ValidWord
+
+!new Word('weapon')
+!spelling := 'WEAPON'
+!weapon.category := #NONE
+!for c in spelling.characters() do l := new Letter(); l.letter := c; insert (weapon, l) into Spelling; end;
+!insert (dict, weapon) into ValidWord
+
+!new Word('oh')
+!spelling := 'OH'
+!oh.category := #NONE
+!for c in spelling.characters() do l := new Letter(); l.letter := c; insert (oh, l) into Spelling; end;
+!insert (dict, oh) into ValidWord
+
+!new Word('retweet')
+!spelling := 'RETWEET'
+!retweet.category := #NONE
+!for c in spelling.characters() do l := new Letter(); l.letter := c; insert (retweet, l) into Spelling; end;
+!insert (dict, retweet) into ValidWord
+
+!new Word('rewet')
+!spelling := 'REWET'
+!rewet.category := #NONE
+!for c in spelling.characters() do l := new Letter(); l.letter := c; insert (rewet, l) into Spelling; end;
+!insert (dict, rewet) into ValidWord
+
+!new Word('fiddly')
+!spelling := 'FIDDLY'
+!fiddly.category := #NONE
+!for c in spelling.characters() do l := new Letter(); l.letter := c; insert (fiddly, l) into Spelling; end;
+!insert (dict, fiddly) into ValidWord
+
+!new Word('fe')
+!spelling := 'FE'
+!fe.category := #NONE
+!for c in spelling.characters() do l := new Letter(); l.letter := c; insert (fe, l) into Spelling; end;
+!insert (dict, fe) into ValidWord
+
+!new Word('it')
+!spelling := 'IT'
+!it.category := #NONE
+!for c in spelling.characters() do l := new Letter(); l.letter := c; insert (it, l) into Spelling; end;
+!insert (dict, it) into ValidWord
+
+!new Word('suicide')
+!spelling := 'SUICIDE'
+!suicide.category := #NONE
+!for c in spelling.characters() do l := new Letter(); l.letter := c; insert (suicide, l) into Spelling; end;
+!insert (dict, suicide) into ValidWord
+
+!new Word('hoo')
+!spelling := 'HOO'
+!hoo.category := #NONE
+!for c in spelling.characters() do l := new Letter(); l.letter := c; insert (hoo, l) into Spelling; end;
+!insert (dict, hoo) into ValidWord
+
+!new Word('hit')
+!spelling := 'HIT'
+!hit.category := #NONE
+!for c in spelling.characters() do l := new Letter(); l.letter := c; insert (hit, l) into Spelling; end;
+!insert (dict, hit) into ValidWord
+
+!new Word('od')
+!spelling := 'OD'
+!od.category := #NONE
+!for c in spelling.characters() do l := new Letter(); l.letter := c; insert (od, l) into Spelling; end;
+!insert (dict, od) into ValidWord
+
 --------Users
 
 !new User('u1')
@@ -267,12 +351,14 @@ reset
 !tSeq := OrderedSet{m1R5Tile, m1E5Tile, m1M2Tile, m1O3Tile, m1T1Tile, m1E9Tile}
 !m1Rack1.triggerPlay(8, 8, #HORIZONTAL, tSeq)
 ? m1.getWordsSpeltByPlay(8, 8, #HORIZONTAL, tSeq, rightNow)
+? m1.score
 
 !for tick in Sequence{1..8} do clk.tick(); end
 ? m1Rack2.tiles
 !tSeq := OrderedSet{m1A8Tile, m1X1Tile}
 !m1Rack2.triggerPlay(6, 9, #VERTICAL, tSeq)
 ? m1.getWordsSpeltByPlay(6, 9, #VERTICAL, tSeq, rightNow)
+? m1.score
 
 !for tick in Sequence{1..11} do clk.tick(); end
 ? m1Rack1.tiles
@@ -281,74 +367,138 @@ reset
 !tSeq := OrderedSet{m1J1Tile, m1E11Tile, m1E2Tile, m1I1Tile, m1N4Tile, m1G2Tile}
 !m1Rack1.triggerPlay(5, 8, #VERTICAL, tSeq)
 ? m1.getWordsSpeltByPlay(5, 8, #VERTICAL, tSeq, rightNow)
+? m1.score
 
 !for tick in Sequence{1..10} do clk.tick(); end
 ? m1Rack2.tiles
 !tSeq := OrderedSet{m1S4Tile, m1U2Tile, m1B1Tile, m1N2Tile, m1E6Tile, m1T4Tile}
 !m1Rack2.triggerPlay(8, 14, #VERTICAL, tSeq)
 ? m1.getWordsSpeltByPlay(8, 14, #VERTICAL, tSeq, rightNow)
+? m1.score
 
 !for tick in Sequence{1..9} do clk.tick(); end
 ? m1Rack1.tiles
 !tSeq := OrderedSet{m1C1Tile, m1A6Tile, m1R2Tile, m1O5Tile}
 !m1Rack1.triggerPlay(11, 5, #HORIZONTAL, tSeq)
 ? m1.getWordsSpeltByPlay(11, 5, #HORIZONTAL, tSeq, rightNow)
+? m1.score
 
 !for tick in Sequence{1..10} do clk.tick(); end
 ? m1Rack2.tiles
 !tSeq := OrderedSet{m1S1Tile, m1O7Tile, m1U4Tile, m1R3Tile}
 !m1Rack2.triggerPlay(11, 10, #VERTICAL, tSeq)
 ? m1.getWordsSpeltByPlay(11, 10, #VERTICAL, tSeq, rightNow)
+? m1.score
 
 !for tick in Sequence{1..20} do clk.tick(); end
 ? m1Rack1.tiles
 !tSeq := OrderedSet{m1H2Tile, m1E1Tile, m1L2Tile, m1I4Tile, m1A7Tile, m1L3Tile}
 !m1Rack1.triggerPlay(7, 5, #VERTICAL, tSeq)
 ? m1.getWordsSpeltByPlay(7, 5, #VERTICAL, tSeq, rightNow)
+? m1.score
 
 !for tick in Sequence{1..16} do clk.tick(); end
 ? m1Rack2.tiles
 !tSeq := OrderedSet{m1F1Tile, m1A9Tile, m1N1Tile, m1K1Tile}
 !m1Rack2.triggerPlay(13, 4, #HORIZONTAL, tSeq)
 ? m1.getWordsSpeltByPlay(13, 4, #HORIZONTAL, tSeq, rightNow)
+? m1.score
+
+!for tick in Sequence{1..26} do clk.tick(); end
+? m1Rack1.tiles
+!tSeq := OrderedSet{m1G3Tile, m1U3Tile, m1I5Tile, m1N3Tile, m1A4Tile}
+!m1Rack1.triggerPlay(8, 1, #HORIZONTAL, tSeq)
+? m1.getWordsSpeltByPlay(8, 1, #HORIZONTAL, tSeq, rightNow)
+? m1.score
+
+!for tick in Sequence{1..12} do clk.tick(); end
+? m1Rack2.tiles
+!tSeq := OrderedSet{m1Q1Tile, m1O6Tile, m1T6Tile, m1E12Tile, m1D2Tile}
+!m1Rack2.triggerPlay(7, 2, #VERTICAL, tSeq)
+? m1.getWordsSpeltByPlay(7, 2, #VERTICAL, tSeq, rightNow)
+? m1.score
+
+!for tick in Sequence{1..20} do clk.tick(); end
+? m1Rack1.tiles
+!tSeq := OrderedSet{m1I7Tile, m1B2Tile, m1I8Tile, m1A5Tile}
+!m1Rack1.triggerPlay(8, 12, #VERTICAL, tSeq)
+? m1.getWordsSpeltByPlay(8, 12, #VERTICAL, tSeq, rightNow)
+? m1.score
+
+!for tick in Sequence{1..12} do clk.tick(); end
+? m1Rack2.tiles
+!tSeq := OrderedSet{m1W1Tile, m1E8Tile, m1A1Tile, m1P2Tile, m1O8Tile}
+!m1Rack2.triggerPlay(3, 4, #VERTICAL, tSeq)
+? m1.getWordsSpeltByPlay(3, 4, #VERTICAL, tSeq, rightNow)
+? m1.score
+
+!for tick in Sequence{1..15} do clk.tick(); end
+? m1Rack1.tiles
+!tSeq := OrderedSet{m1R1Tile, m1E3Tile, m1E4Tile, m1T3Tile}
+!m1Rack1.triggerPlay(3, 2, #HORIZONTAL, tSeq)
+? m1.getWordsSpeltByPlay(3, 2, #HORIZONTAL, tSeq, rightNow)
+? m1.score
+
+!for tick in Sequence{1..12} do clk.tick(); end
+? m1Rack2.tiles
+!tSeq := OrderedSet{m1F2Tile, m1I3Tile, m1D3Tile, m1D4Tile, m1L4Tile, m1Y2Tile}
+!m1Rack2.triggerPlay(2, 5, #HORIZONTAL, tSeq)
+? m1.getWordsSpeltByPlay(2, 5, #HORIZONTAL, tSeq, rightNow)
+? m1.score
+
+!for tick in Sequence{1..17} do clk.tick(); end
+? m1Rack1.tiles
+!tSeq := OrderedSet{m1S2Tile, m1U1Tile, m1I2Tile, m1C2Tile, m1I9Tile, m1D1Tile}
+!m1Rack1.triggerPlay(2, 13, #VERTICAL, tSeq)
+? m1.getWordsSpeltByPlay(2, 13, #VERTICAL, tSeq, rightNow)
+? m1.score
+
+!for tick in Sequence{1..15} do clk.tick(); end
+? m1Rack2.tiles
+!tSeq := OrderedSet{m1H1Tile,m1O1Tile,m1O2Tile}
+!m1Rack2.triggerPlay(1, 6, #HORIZONTAL, tSeq)
+? m1.getWordsSpeltByPlay(1, 6, #HORIZONTAL, tSeq, rightNow)
+? m1.score
 
 -- !for tick in Sequence{1..} do clk.tick(); end
 -- ? m1Rack1.tiles
 -- !tSeq := OrderedSet{}
 -- !m1Rack1.triggerPlay(5, 8, #VERTICAL, tSeq)
 -- ? m1.getWordsSpeltByPlay(5, 8, #VERTICAL, tSeq, rightNow)
+-- ? m1.score
 
 -- !for tick in Sequence{1..} do clk.tick(); end
 -- ? m1Rack2.tiles
 -- !tSeq := OrderedSet{}
 -- !m1Rack2.triggerPlay(8, 14, #VERTICAL, tSeq)
 -- ? m1.getWordsSpeltByPlay(8, 14, #VERTICAL, tSeq, rightNow)
+-- ? m1.score
 
 --     1   2   3   4   5   6   7   8   9  10  11  12  13  14  15
 --   +---+---+---+---+---+---+---+---+---+---+---+---+---+---+---+
--- 1 |   |   |   |   |   |   |   |   |   |   |   |   |   |   |   | 1
+-- 1 |   |   |   |   |   | H | O | O |   |   |   |   |   |   |   | 1
 --   +---+---+---+---+---+---+---+---+---+---+---+---+---+---+---+
--- 2 |   |   |   |   |   |   |   |   |   |   |   |   |   |   |   | 2
+-- 2 |   |   |   |   | F | I | D | D | L | Y |   |   | S |   |   | 2
 --   +---+---+---+---+---+---+---+---+---+---+---+---+---+---+---+
--- 3 |   |   |   |   |   |   |   |   |   |   |   |   |   |   |   | 3
+-- 3 |   | R | E | W | E | T |   |   |   |   |   |   | U |   |   | 3
 --   +---+---+---+---+---+---+---+---+---+---+---+---+---+---+---+
--- 4 |   |   |   |   |   |   |   |   |   |   |   |   |   |   |   | 4
+-- 4 |   |   |   | E |   |   |   |   |   |   |   |   | I |   |   | 4
 --   +---+---+---+---+---+---+---+---+---+---+---+---+---+---+---+
--- 5 |   |   |   |   |   |   |   | J |   |   |   |   |   |   |   | 5
+-- 5 |   |   |   | A |   |   |   | J |   |   |   |   | C |   |   | 5
 --   +---+---+---+---+---+---+---+---+---+---+---+---+---+---+---+
--- 6 |   |   |   |   |   |   |   | E | A |   |   |   |   |   |   | 6
+-- 6 |   |   |   | P |   |   |   | E | A |   |   |   | I |   |   | 6
 --   +---+---+---+---+---+---+---+---+---+---+---+---+---+---+---+
--- 7 |   |   |   |   | H |   |   | E | X |   |   |   |   |   |   | 7
+-- 7 |   | Q |   | O | H |   |   | E | X |   |   |   | D |   |   | 7
 --   +---+---+---+---+---+---+---+---+---+---+---+---+---+---+---+
--- 8 |   |   |   |   | E |   |   | R | E | M | O | T | E | S |   | 8
+-- 8 | G | U | I | N | E | A |   | R | E | M | O | T | E | S |   | 8
 --   +---+---+---+---+---+---+---+---+---+---+---+---+---+---+---+
--- 9 |   |   |   |   | L |   |   | I |   |   |   |   |   | U |   | 9
+-- 9 |   | O |   |   | L |   |   | I |   |   |   | I |   | U |   | 9
 --   +---+---+---+---+---+---+---+---+---+---+---+---+---+---+---+
---10 |   |   |   |   | I |   |   | N |   |   |   |   |   | B |   | 10
+--10 |   | T |   |   | I |   |   | N |   |   |   | B |   | B |   | 10
 --   +---+---+---+---+---+---+---+---+---+---+---+---+---+---+---+
---11 |   |   |   |   | C | A | R | G | O | S |   |   |   | N |   | 11
+--11 |   | E |   |   | C | A | R | G | O | S |   | I |   | N |   | 11
 --   +---+---+---+---+---+---+---+---+---+---+---+---+---+---+---+
---12 |   |   |   |   | A |   |   |   |   | O |   |   |   | E |   | 12
+--12 |   | D |   |   | A |   |   |   |   | O |   | A |   | E |   | 12
 --   +---+---+---+---+---+---+---+---+---+---+---+---+---+---+---+
 --13 |   |   |   | F | L | A | N | K |   | U |   |   |   | T |   | 13
 --   +---+---+---+---+---+---+---+---+---+---+---+---+---+---+---+
@@ -360,5 +510,6 @@ reset
 
 ? m1Rack1.tiles
 ? m1Rack2.tiles
+? m1.board.tileBag.tiles->size()
 
 check
