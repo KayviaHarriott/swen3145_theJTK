@@ -1,8 +1,8 @@
 ------------------------------------------------------------------------------
 --! @authors: Jason Hunter, Kayvia Harriott, Tashna-Gail Williams
 --! Created on: 2021-11-02
---! @version: 0.4.9
---! Last Updated: 2021-12-01 13:30:34
+--! @version: 0.5.0
+--! Last Updated: 2021-12-01 17:12:50
 ------------------------------------------------------------------------------
 
 -- PLEASE DON'T EDIT THIS FILE DIRECTLY, COPY AND PASTE IT AND WORK ON THAT
@@ -54,70 +54,106 @@ reset
 !insert (dict, dict) into OnlyDict
 
 !new Word('word')
-!spelling := Sequence{'W', 'O', 'R', 'D'}
+!spelling := 'WORD'
 !word.category := #NONE
-!for c in spelling do l := new Letter(); l.letter := c; insert (word, l) into Spelling; end;
+!for c in spelling.characters() do l := new Letter(); l.letter := c; insert (word, l) into Spelling; end;
 !insert (dict, word) into ValidWord
 
 !new Word('door')
-!spelling := Sequence{'D', 'O', 'O', 'R'}
+!spelling := 'DOOR'
 !door.category := #NONE
-!for c in spelling do l := new Letter(); l.letter := c; insert (door, l) into Spelling; end;
+!for c in spelling.characters() do l := new Letter(); l.letter := c; insert (door, l) into Spelling; end;
 !insert (dict, door) into ValidWord
 
 !new Word('stream')
-!spelling := Sequence{'S', 'T', 'R', 'E', 'A', 'M'}
+!spelling := 'STREAM'
 !stream.category := #NONE
-!for c in spelling do l := new Letter(); l.letter := c; insert (stream, l) into Spelling; end;
+!for c in spelling.characters() do l := new Letter(); l.letter := c; insert (stream, l) into Spelling; end;
 !insert (dict, stream) into ValidWord
 
 !new Word('ate')
-!spelling := Sequence{'A', 'T', 'E'}
+!spelling := 'ATE'
 !ate.category := #NONE
-!for c in spelling do l := new Letter(); l.letter := c; insert (ate, l) into Spelling; end;
+!for c in spelling.characters() do l := new Letter(); l.letter := c; insert (ate, l) into Spelling; end;
 !insert (dict, ate) into ValidWord
 
 !new Word('remote')
-!spelling := Sequence{'R', 'E', 'M', 'O', 'T', 'E'}
+!spelling := 'REMOTE'
 !remote.category := #NONE
-!for c in spelling do l := new Letter(); l.letter := c; insert (remote, l) into Spelling; end;
+!for c in spelling.characters() do l := new Letter(); l.letter := c; insert (remote, l) into Spelling; end;
 !insert (dict, remote) into ValidWord
 
 !new Word('axe')
-!spelling := Sequence{'A', 'X', 'E'}
+!spelling := 'AXE'
 !axe.category := #NONE
-!for c in spelling do l := new Letter(); l.letter := c; insert (axe, l) into Spelling; end;
+!for c in spelling.characters() do l := new Letter(); l.letter := c; insert (axe, l) into Spelling; end;
 !insert (dict, axe) into ValidWord
 
 !new Word('jeering')
-!spelling := Sequence{'J', 'E', 'E', 'R', 'I', 'N', 'G'}
+!spelling := 'JEERING'
 !jeering.category := #NONE
-!for c in spelling do l := new Letter(); l.letter := c; insert (jeering, l) into Spelling; end;
+!for c in spelling.characters() do l := new Letter(); l.letter := c; insert (jeering, l) into Spelling; end;
 !insert (dict, jeering) into ValidWord
 
 !new Word('ea')
-!spelling := Sequence{'E', 'A'}
+!spelling := 'EA'
 !ea.category := #NONE
-!for c in spelling do l := new Letter(); l.letter := c; insert (ea, l) into Spelling; end;
+!for c in spelling.characters() do l := new Letter(); l.letter := c; insert (ea, l) into Spelling; end;
 !insert (dict, ea) into ValidWord
 
 !new Word('ex')
-!spelling := Sequence{'E', 'X'}
+!spelling := 'EX'
 !ex.category := #NONE
-!for c in spelling do l := new Letter(); l.letter := c; insert (ex, l) into Spelling; end;
+!for c in spelling.characters() do l := new Letter(); l.letter := c; insert (ex, l) into Spelling; end;
 !insert (dict, ex) into ValidWord
 
 !new Word('subnet')
-!spelling := Sequence{'S', 'U', 'B', 'N', 'E', 'T'}
+!spelling := 'SUBNET'
 !subnet.category := #NONE
-!for c in spelling do l := new Letter(); l.letter := c; insert (subnet, l) into Spelling; end;
+!for c in spelling.characters() do l := new Letter(); l.letter := c; insert (subnet, l) into Spelling; end;
 !insert (dict, subnet) into ValidWord
 
 !new Word('remotes')
-!spelling := Sequence{'R', 'E', 'M', 'O', 'T', 'E', 'S'}
+!spelling := 'REMOTES'
 !remotes.category := #NONE
-!for c in spelling do l := new Letter(); l.letter := c; insert (remotes, l) into Spelling; end;
+!for c in spelling.characters() do l := new Letter(); l.letter := c; insert (remotes, l) into Spelling; end;
 !insert (dict, remotes) into ValidWord
+
+!new Word('cargo')
+!spelling := 'CARGO'
+!cargo.category := #NONE
+!for c in spelling.characters() do l := new Letter(); l.letter := c; insert (cargo, l) into Spelling; end;
+!insert (dict, cargo) into ValidWord
+
+!new Word('sour')
+!spelling := 'SOUR'
+!sour.category := #NONE
+!for c in spelling.characters() do l := new Letter(); l.letter := c; insert (sour, l) into Spelling; end;
+!insert (dict, sour) into ValidWord
+
+!new Word('cargos')
+!spelling := 'CARGOS'
+!cargos.category := #NONE
+!for c in spelling.characters() do l := new Letter(); l.letter := c; insert (cargos, l) into Spelling; end;
+!insert (dict, cargos) into ValidWord
+
+!new Word('helical')
+!spelling := 'HELICAL'
+!helical.category := #NONE
+!for c in spelling.characters() do l := new Letter(); l.letter := c; insert (helical, l) into Spelling; end;
+!insert (dict, helical) into ValidWord
+
+!new Word('flanked')
+!spelling := 'FLANKED'
+!flanked.category := #NONE
+!for c in spelling.characters() do l := new Letter(); l.letter := c; insert (flanked, l) into Spelling; end;
+!insert (dict, flanked) into ValidWord
+
+!new Word('flank')
+!spelling := 'FLANK'
+!flank.category := #NONE
+!for c in spelling.characters() do l := new Letter(); l.letter := c; insert (flank, l) into Spelling; end;
+!insert (dict, flank) into ValidWord
 
 --------Users
 
@@ -251,6 +287,76 @@ reset
 !tSeq := OrderedSet{m1S4Tile, m1U2Tile, m1B1Tile, m1N2Tile, m1E6Tile, m1T4Tile}
 !m1Rack2.triggerPlay(8, 14, #VERTICAL, tSeq)
 ? m1.getWordsSpeltByPlay(8, 14, #VERTICAL, tSeq, rightNow)
+
+!for tick in Sequence{1..9} do clk.tick(); end
+? m1Rack1.tiles
+!tSeq := OrderedSet{m1C1Tile, m1A6Tile, m1R2Tile, m1O5Tile}
+!m1Rack1.triggerPlay(11, 5, #HORIZONTAL, tSeq)
+? m1.getWordsSpeltByPlay(11, 5, #HORIZONTAL, tSeq, rightNow)
+
+!for tick in Sequence{1..10} do clk.tick(); end
+? m1Rack2.tiles
+!tSeq := OrderedSet{m1S1Tile, m1O7Tile, m1U4Tile, m1R3Tile}
+!m1Rack2.triggerPlay(11, 10, #VERTICAL, tSeq)
+? m1.getWordsSpeltByPlay(11, 10, #VERTICAL, tSeq, rightNow)
+
+!for tick in Sequence{1..20} do clk.tick(); end
+? m1Rack1.tiles
+!tSeq := OrderedSet{m1H2Tile, m1E1Tile, m1L2Tile, m1I4Tile, m1A7Tile, m1L3Tile}
+!m1Rack1.triggerPlay(7, 5, #VERTICAL, tSeq)
+? m1.getWordsSpeltByPlay(7, 5, #VERTICAL, tSeq, rightNow)
+
+!for tick in Sequence{1..16} do clk.tick(); end
+? m1Rack2.tiles
+!tSeq := OrderedSet{m1F1Tile, m1A9Tile, m1N1Tile, m1K1Tile}
+!m1Rack2.triggerPlay(13, 4, #HORIZONTAL, tSeq)
+? m1.getWordsSpeltByPlay(13, 4, #HORIZONTAL, tSeq, rightNow)
+
+-- !for tick in Sequence{1..} do clk.tick(); end
+-- ? m1Rack1.tiles
+-- !tSeq := OrderedSet{}
+-- !m1Rack1.triggerPlay(5, 8, #VERTICAL, tSeq)
+-- ? m1.getWordsSpeltByPlay(5, 8, #VERTICAL, tSeq, rightNow)
+
+-- !for tick in Sequence{1..} do clk.tick(); end
+-- ? m1Rack2.tiles
+-- !tSeq := OrderedSet{}
+-- !m1Rack2.triggerPlay(8, 14, #VERTICAL, tSeq)
+-- ? m1.getWordsSpeltByPlay(8, 14, #VERTICAL, tSeq, rightNow)
+
+--     1   2   3   4   5   6   7   8   9  10  11  12  13  14  15
+--   +---+---+---+---+---+---+---+---+---+---+---+---+---+---+---+
+-- 1 |   |   |   |   |   |   |   |   |   |   |   |   |   |   |   | 1
+--   +---+---+---+---+---+---+---+---+---+---+---+---+---+---+---+
+-- 2 |   |   |   |   |   |   |   |   |   |   |   |   |   |   |   | 2
+--   +---+---+---+---+---+---+---+---+---+---+---+---+---+---+---+
+-- 3 |   |   |   |   |   |   |   |   |   |   |   |   |   |   |   | 3
+--   +---+---+---+---+---+---+---+---+---+---+---+---+---+---+---+
+-- 4 |   |   |   |   |   |   |   |   |   |   |   |   |   |   |   | 4
+--   +---+---+---+---+---+---+---+---+---+---+---+---+---+---+---+
+-- 5 |   |   |   |   |   |   |   | J |   |   |   |   |   |   |   | 5
+--   +---+---+---+---+---+---+---+---+---+---+---+---+---+---+---+
+-- 6 |   |   |   |   |   |   |   | E | A |   |   |   |   |   |   | 6
+--   +---+---+---+---+---+---+---+---+---+---+---+---+---+---+---+
+-- 7 |   |   |   |   | H |   |   | E | X |   |   |   |   |   |   | 7
+--   +---+---+---+---+---+---+---+---+---+---+---+---+---+---+---+
+-- 8 |   |   |   |   | E |   |   | R | E | M | O | T | E | S |   | 8
+--   +---+---+---+---+---+---+---+---+---+---+---+---+---+---+---+
+-- 9 |   |   |   |   | L |   |   | I |   |   |   |   |   | U |   | 9
+--   +---+---+---+---+---+---+---+---+---+---+---+---+---+---+---+
+--10 |   |   |   |   | I |   |   | N |   |   |   |   |   | B |   | 10
+--   +---+---+---+---+---+---+---+---+---+---+---+---+---+---+---+
+--11 |   |   |   |   | C | A | R | G | O | S |   |   |   | N |   | 11
+--   +---+---+---+---+---+---+---+---+---+---+---+---+---+---+---+
+--12 |   |   |   |   | A |   |   |   |   | O |   |   |   | E |   | 12
+--   +---+---+---+---+---+---+---+---+---+---+---+---+---+---+---+
+--13 |   |   |   | F | L | A | N | K |   | U |   |   |   | T |   | 13
+--   +---+---+---+---+---+---+---+---+---+---+---+---+---+---+---+
+--14 |   |   |   |   |   |   |   |   |   | R |   |   |   |   |   | 14
+--   +---+---+---+---+---+---+---+---+---+---+---+---+---+---+---+
+--15 |   |   |   |   |   |   |   |   |   |   |   |   |   |   |   | 15
+--   +---+---+---+---+---+---+---+---+---+---+---+---+---+---+---+
+--     1   2   3   4   5   6   7   8   9  10  11  12  13  14  15
 
 ? m1Rack1.tiles
 ? m1Rack2.tiles
