@@ -1,8 +1,8 @@
 ------------------------------------------------------------------------------
 --! @authors: Jason Hunter, Kayvia Harriott, Tashna-Gail Williams
 --! Created on: 2021-10-11
---! @version: 0.5.4
---! Last Updated: 2021-12-01 00:45:39
+--! @version: 0.5.5
+--! Last Updated: 2021-12-01 03:58:29
 ------------------------------------------------------------------------------
 
 model scrumble
@@ -44,57 +44,13 @@ enum ProfileState {PRIVATE, PUBLIC}
 enum PlayDirection {HORIZONTAL, VERTICAL}
 
 --! @TODO:
---!     - All the method bodies need to be specified
+--!     - Add in permission checks in pre conditions for restricted operations
 --!     - Add attributes to represent the rest of the player's profile data
---!     - Rack might need an enum to indicate that a player has a specific
---!       match open so it doesn't generate notifs when the match is open and
---!       a play is made
---!     - Class to represent the match queue for players waiting to join a
---!       match. It would have a never ending loop constantly running to empty
---!       a queue of players and make matches. It would be observable by
---!       Player so a player can get updates when a match is made. We may need
---!       a queue for each type of match
 --!     - Figure out how to manage adding and removing words since you
 --!       wouldn't want changes to affect past games
---!     - Invariants for checking the active period based on how a request was
---!       addressed
 --!     - Add pre and post conditions to check that the friends role of a
 --!       player is properly updated when friend requests are accepted or
 --!       recinded as well as the permissions granted are updated accordingly
---!
---!     DESIGN PATTERN REFINEMENTS
---!         Observer Pattern
---!             In the observer pattern, observables update observers when
---!             they change creating the effect that the observer is
---!             "watching" the observable. So observables have a list of their
---!             observers and call a method in the observer to let them know
---!             things changed. The observer would then execute different
---!             operations to update anything else that depends on the state
---!             of the observable object.
---!
---!         Suggestions for our system:
---!             +------------------------+
---!             | observer    | observes |
---!             +-------------+----------+
---!             | leaderboard | match    |
---!             | player      | match    |
---!             | player      | request  |
---!             | player      | chat     |
---!             | player      | report   |
---!             +-------------+----------+
---!
---!         Notes: - Leaderboard observes matches so that player may update
---!                  when a match ends
---!                - Player observes match for status updates
---!                - Player observes request so they may be notified when they
---!                  receive a request
---!                - Match observes play so play may advance the state of the
---!                  game (ie. update the bag, board, racks and score) when a
---!                  play is made and generate a notification
---!                - Player observes chat so chat may notify a player when a
---!                  new message is received
---!                - Player observes report so report may notify a player when
---!                  it's status changes
 
 ------------------------------------------------------------------------------
 -- Classes
@@ -115,7 +71,7 @@ operations
     --!
     --! @param Observable o The observable that called the method
     update(o: Observable)
-    --is this to update id? 
+    begin end
     -- #TODO Pre and Post
     pre argIsValid: o <> null
     post noPost: true
@@ -127,6 +83,11 @@ operations
     --! @brief Loops through all the observers and calls update for each of
     --!        them
     notify()
+    begin
+        for o in self.observer do
+            o.update(self);
+        end;
+    end
     pre hasObservers: not observer->isEmpty()
     post noPost: true
 end -- Observable Class
@@ -1453,9 +1414,38 @@ operations
             into CurrentTime;
         self.sentDate.setToNow();
         self.type := t;
+
+        insert (self.reqSender, self) into Watches;
+        insert (self.reqRcvr, self) into Watches;
     end
     pre argIsValid: t <> null
     post attributesSet: sentDate.equalsNow() and type = t
+
+    --! isSenfValid doc
+    --! @brief Returns true if the request state is valid
+    --!
+    --! 1. ACCEPTED request must have an active period with a start but no
+    --!    end time and the start time is after the sent time
+    --! 2. The active period starts after the request was sent and must not
+    --!    have an end time
+    --! 3. PENDING, REJECTED and LOST requests have no active period
+    --! 4. RECINDED requests have an active period with as start and end time
+    --!    and the start time is after the sent time
+    --!
+    --! @return Boolean
+    isSelfValid(): Boolean =
+        (status = #ACCEPTED and
+            activePeriod <> null and activePeriod.isSelfValid() and
+            activePeriod.getStart().after(sentDate) and
+            activePeriod.getEnd() = null) or
+        (Set{#PENDING, #REJECTED, #LOST}->includes(status) and
+            activePeriod <> null) or
+        (status = #RECINDED and
+            activePeriod <> null and activePeriod.isSelfValid() and
+            activePeriod.getStart().after(sentDate) and
+            activePeriod.getEnd() <> null)
+    pre noPre: true
+    post noPost: true
 
     --! accept doc
     --! @brief Mark the request as accepted
@@ -1470,20 +1460,23 @@ operations
 
         self.activePeriod := new Period();
         self.activePeriod.addStart(d);
-    end
 
+        self.notify();
+    end
     pre isPending: status = #PENDING
+    pre isValid: isSelfValid()
     post statusUpdated: status = #ACCEPTED
-    post periodActivated: activePeriod.getStart().equalsNow() and
-        activePeriod.getEnd() = null
+    post isStillValid: isSelfValid()
+    post periodActivated: activePeriod.getStart().equalsNow()
 
     --! reject doc
     --! @brief Mark the request as rejected
     reject()
     begin self.status := #REJECTED; end
     pre isPending: status = #PENDING
+    pre isValid: isSelfValid()
+    post isStillValid: isSelfValid()
     post statusUpdated: status = #REJECTED
-    post notActivated: activePeriod = null
 
     --! recind doc
     --! @brief Mark the request as recinded
@@ -1498,8 +1491,9 @@ operations
 
         self.activePeriod.addEnd(d);
     end
-
     pre isAccepted: status = #ACCEPTED
+    pre isValid: isSelfValid()
+    post isStillValid: isSelfValid()
     post statusUpdated: status = #RECINDED
     post periodDeactivated: activePeriod.getEnd().equalsNow()
 
@@ -1508,8 +1502,9 @@ operations
     block()
     begin self.status := #LOST; end
     pre isPending: status = #PENDING
+    pre isValid: isSelfValid()
+    post isStillValid: isSelfValid()
     post statusUpdated: status = #LOST
-    post notActivated: activePeriod = null
 statemachines
     psm requestStates
     states
@@ -1536,10 +1531,24 @@ operations
     --! accept doc
     --! @brief Mark the request as accepted and creates a new match
     accept()
-    pre isPending: status = #PENDING
-    post statusUpdated: status = #ACCEPTED
-    post newMatchCreated: match->size() = 1
+    begin
+        declare d: DateTime, m: Match;
+        self.status := #ACCEPTED;
 
+        d := new DateTime();
+        insert (d, self.sentDate.now) into CurrentTime;
+        d.setToNow();
+
+        self.activePeriod := new Period();
+        self.activePeriod.addStart(d);
+        m := self.reqSender.user.scrumble.mFactory.getMatch(self.reqRcvr,
+            self.reqSender, self.matchType, self.timed);
+
+        self.notify();
+    end
+    pre noPre: true
+    post newMatchCreated: match <> null and
+        match.oclIsNew() = true
 end -- MatchRequest Class
 
 associationclass Block
@@ -3123,7 +3132,8 @@ operations
     --!
     --! @return Integer
     getRank(): Integer = placement
-    
+    pre noPre: true
+    post noPost: true
 end -- Rank Association Class
 
 ------------------------------------------------------------------------------
@@ -3606,12 +3616,14 @@ context Request
     -- Each request must have a sent date
     inv hasSentDate: sentDate.oclIsKindOf(DateTime)
 
-    -- Each accepted request must have an active period that starts after it
-    -- was sentand must not have an end date that is set once the request is
-    -- recinded
-    inv validAcceptedReq: status = #ACCEPTED implies
-        (activePeriod <> null and activePeriod.getStart().after(sentDate) and
-        activePeriod.getEnd() = null)
+    -- 1. ACCEPTED request must have an active period with a start but no
+    --    end time and the start time is after the sent time
+    -- 2. The active period starts after the request was sent and must not
+    --    have an end time
+    -- 3. PENDING, REJECTED and LOST requests have no active period
+    -- 4. RECINDED requests have an active period with as start and end time
+    --    and the start time is after the sent time
+    inv validStatus: isSelfValid()
 -- End Request Constraints
 
 context MatchRequest
