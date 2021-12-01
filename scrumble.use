@@ -115,6 +115,7 @@ operations
     --!
     --! @param Observable o The observable that called the method
     update(o: Observable)
+    --is this to update id? 
     -- #TODO Pre and Post
     pre argIsValid: o <> null
     post noPost: true
@@ -682,16 +683,27 @@ operations
     --!
     --! @param Report r The report to update the status of
     resolveReport(r: Report)
+    begin
+        r.status := #RESOLVED
+    end
     pre argIsValid: r <> null
     pre isUnderReview: r.getStatus() = #UNDER_REVIEW
     post mutationSuccess: r.getStatus() = #RESOLVED
 
-    --! addWprd doc
+    --! addWord doc
     --! @brief Creates a new word and adds it to the dictionary
     --!
-    --! @param Type <var> Description
-    --! @param Type <var> Description
-    addWord(w: Sequence(Letter), cat: Category)
+    --! @param Letter w Sequence of letters that make up the word
+    --! @param Category cat Category of word added
+    addWord(w: Sequence(Letter), cat: Category, dict: Dictionary)
+    begin
+        declare word: Word, k: ValidWord;
+        --word := w
+        word.category := cat;
+        --k :=  new ValidWord between (w, dict);
+        --new Rank (p.user.id + 'Rank') between (self, p);
+        --self.refresh();
+    end
     -- #TODO Pre and Post
 
     --! depricatedWord doc
@@ -701,6 +713,11 @@ operations
     --! @return type
     --! @throws conditon
     deprecateWord(w: Word)
+    begin
+        w.status := #DEPRECATED;
+    end
+    pre wordExists: w <> null --should be check in dictionary?
+    post : w.status = #DEPRECATED;
     -- #TODO Pre and Post
 
     --! banPlayer doc
@@ -708,6 +725,11 @@ operations
     --!
     --! @param Player p Player to be banned
     banPlayer(p: Player)
+    begin
+        p.status := #BANNED;
+    end
+    pre : p <> null
+    post : p.status = #BANNED;
     -- Sets their status to banned
     -- #TODO Pre and Post
 end -- Admin Class
@@ -3101,6 +3123,7 @@ operations
     --!
     --! @return Integer
     getRank(): Integer = placement
+    
 end -- Rank Association Class
 
 ------------------------------------------------------------------------------
