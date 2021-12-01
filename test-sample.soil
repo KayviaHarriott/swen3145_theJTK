@@ -1,8 +1,8 @@
 ------------------------------------------------------------------------------
 --! @authors: Jason Hunter, Kayvia Harriott, Tashna-Gail Williams
 --! Created on: 2021-11-02
---! @version: 0.4.6
---! Last Updated: 2021-11-29 21:21:06
+--! @version: 0.4.8
+--! Last Updated: 2021-12-01 00:45:22
 ------------------------------------------------------------------------------
 
 -- PLEASE DON'T EDIT THIS FILE DIRECTLY, COPY AND PASTE IT AND WORK ON THAT
@@ -33,6 +33,16 @@ reset
 !insert (scrumble, lboard) into ScrumbleLboard
 !insert (lboard, lboard) into OnlyLboard
 
+!new Queue('rankedQ')
+!insert (scrumble, rankedQ) into ScrumbleQueues
+!rankedQ.init(#RANKED, true)
+!new Queue('unrankedTimedQ')
+!insert (scrumble, unrankedTimedQ) into ScrumbleQueues
+!unrankedTimedQ.init(#UNRANKED, true)
+!new Queue('unrankedUntimedQ')
+!insert (scrumble, unrankedUntimedQ) into ScrumbleQueues
+!unrankedUntimedQ.init(#UNRANKED, false)
+
 --------Dictionary
 
 !new Dictionary('dict')
@@ -41,56 +51,67 @@ reset
 
 !new Word('word')
 !spelling := Sequence{'W', 'O', 'R', 'D'}
+!word.category := #NONE
 !for c in spelling do l := new Letter(); l.letter := c; insert (word, l) into Spelling; end;
 !insert (dict, word) into ValidWord
 
 !new Word('door')
 !spelling := Sequence{'D', 'O', 'O', 'R'}
+!door.category := #NONE
 !for c in spelling do l := new Letter(); l.letter := c; insert (door, l) into Spelling; end;
 !insert (dict, door) into ValidWord
 
 !new Word('stream')
 !spelling := Sequence{'S', 'T', 'R', 'E', 'A', 'M'}
+!stream.category := #NONE
 !for c in spelling do l := new Letter(); l.letter := c; insert (stream, l) into Spelling; end;
 !insert (dict, stream) into ValidWord
 
 !new Word('ate')
 !spelling := Sequence{'A', 'T', 'E'}
+!ate.category := #NONE
 !for c in spelling do l := new Letter(); l.letter := c; insert (ate, l) into Spelling; end;
 !insert (dict, ate) into ValidWord
 
 !new Word('remote')
 !spelling := Sequence{'R', 'E', 'M', 'O', 'T', 'E'}
+!remote.category := #NONE
 !for c in spelling do l := new Letter(); l.letter := c; insert (remote, l) into Spelling; end;
 !insert (dict, remote) into ValidWord
 
 !new Word('axe')
 !spelling := Sequence{'A', 'X', 'E'}
+!axe.category := #NONE
 !for c in spelling do l := new Letter(); l.letter := c; insert (axe, l) into Spelling; end;
 !insert (dict, axe) into ValidWord
 
 !new Word('jeering')
 !spelling := Sequence{'J', 'E', 'E', 'R', 'I', 'N', 'G'}
+!jeering.category := #NONE
 !for c in spelling do l := new Letter(); l.letter := c; insert (jeering, l) into Spelling; end;
 !insert (dict, jeering) into ValidWord
 
 !new Word('ea')
 !spelling := Sequence{'E', 'A'}
+!ea.category := #NONE
 !for c in spelling do l := new Letter(); l.letter := c; insert (ea, l) into Spelling; end;
 !insert (dict, ea) into ValidWord
 
 !new Word('ex')
 !spelling := Sequence{'E', 'X'}
+!ex.category := #NONE
 !for c in spelling do l := new Letter(); l.letter := c; insert (ex, l) into Spelling; end;
 !insert (dict, ex) into ValidWord
 
 !new Word('subnet')
 !spelling := Sequence{'S', 'U', 'B', 'N', 'E', 'T'}
+!subnet.category := #NONE
 !for c in spelling do l := new Letter(); l.letter := c; insert (subnet, l) into Spelling; end;
 !insert (dict, subnet) into ValidWord
 
 !new Word('remotes')
 !spelling := Sequence{'R', 'E', 'M', 'O', 'T', 'E', 'S'}
+!remotes.category := #NONE
 !for c in spelling do l := new Letter(); l.letter := c; insert (remotes, l) into Spelling; end;
 !insert (dict, remotes) into ValidWord
 
@@ -99,30 +120,24 @@ reset
 !new User('u1')
 !u1.id := 'u1'
 !insert (scrumble, u1) into ScrumbleUsers
+!new DateTime('u1DoB')
+!insert (u1DoB, rightNow) into CurrentTime
 !new Player('player1')
 !insert (u1, player1) into UserRole
-!player1.username := 'TestUser1'
-!player1.email := 'test1@email.com'
-!player1.status := #PLAYING
-!player1.state := #PRIVATE
-!player1.score := 500
+!player1.initialise('TestUser1', 'test1@email.com', u1DoB)
 
-!new Rank('rank1') between (lboard,player1)
-!rank1.placement := 1
+!player1.openApp()
 
 !new User('u2')
 !u2.id := 'u2'
 !insert (scrumble, u2) into ScrumbleUsers
+!new DateTime('u2DoB')
+!insert (u2DoB, rightNow) into CurrentTime
 !new Player('player2')
 !insert (u2, player2) into UserRole
-!player2.username := 'TestUser2'
-!player2.email := 'test2@email.com'
-!player2.status := #PLAYING
-!player2.state := #PRIVATE
-!player2.score := 450
+!player2.initialise('TestUser2', 'test2@email.com', u2DoB)
 
-!new Rank('rank2') between (lboard,player2)
-!rank2.placement := 2
+!player2.openApp()
 
 --------Friend Request between Players 1 and 2
 
@@ -145,6 +160,9 @@ reset
 !frReq1P1P2.activePeriod := frReq1Period
 !insert (player1,frReq1P1P2) into SentRequest
 !insert (player2,frReq1P1P2) into RecievedRequest
+
+!insert (player1, player2) into FriendList
+!insert (player2, player1) into FriendList
 
 --------Chat between Players 1 and 2
 
@@ -171,36 +189,41 @@ reset
 
 --------Match Request between Players 1 and 2
 
-!new DateTime('matchReq1SentDate')
-!insert (matchReq1SentDate, rightNow) into CurrentTime
-!matchReq1SentDate.initialise(2021, 10, 22, 12, 36, 12)
+--!new DateTime('matchReq1SentDate')
+--!insert (matchReq1SentDate, rightNow) into CurrentTime
+--!matchReq1SentDate.initialise(2021, 10, 22, 12, 36, 12)
 
-!new DateTime('matchReq1AddrDate')
-!insert (matchReq1AddrDate, rightNow) into CurrentTime
-!matchReq1AddrDate.initialise(2021, 10, 22, 12, 37, 21)
+--!new DateTime('matchReq1AddrDate')
+--!insert (matchReq1AddrDate, rightNow) into CurrentTime
+--!matchReq1AddrDate.initialise(2021, 10, 22, 12, 37, 21)
 
-!new Period('matchReq1Period')
-!matchReq1Period.addStart(matchReq1AddrDate)
+--!new Period('matchReq1Period')
+--!matchReq1Period.addStart(matchReq1AddrDate)
 
-!new MatchRequest('matchReq1')
-!matchReq1.id := 'matchReq1'
-!matchReq1.sentDate := matchReq1SentDate
-!matchReq1.activePeriod := matchReq1Period
-!matchReq1.type := #MATCH
-!matchReq1.matchType := #UNRANKED
-!matchReq1.timed := false
-!matchReq1.status := #ACCEPTED
-!insert (player1,matchReq1) into SentRequest
-!insert (player2,matchReq1) into RecievedRequest
+--!new MatchRequest('matchReq1')
+--!matchReq1.id := 'matchReq1'
+--!matchReq1.sentDate := matchReq1SentDate
+--!matchReq1.activePeriod := matchReq1Period
+--!matchReq1.type := #MATCH
+--!matchReq1.matchType := #UNRANKED
+--!matchReq1.timed := false
+--!matchReq1.status := #ACCEPTED
+--!insert (player1,matchReq1) into SentRequest
+--!insert (player2,matchReq1) into RecievedRequest
+
+--------Player 1 and 2 joining the queue
+
+!player1.joinQueue(#UNRANKED, false)
+!player2.joinQueue(#UNRANKED, false)
 
 --------Match between Player 1 and 2
+
+!player1.openMatch(player1.matchHistory->last())
+!player2.openMatch(player2.matchHistory->last())
 
 -- At this point rightNow = 2021-10-22 12:35:59
 -- Changing the time before this point will change the letters assigned to
 -- each Rack meaning you'll have to make new words all over again
-
-!match1 := mBuilder.buildUnrankedUntimedMatch(player2, player1)
---!insert (matchReq1, match1) into RequestMatch
 
 ? m1Rack1.tiles
 !tSeq := OrderedSet{m1R5Tile, m1E5Tile, m1M2Tile, m1O3Tile, m1T1Tile, m1E9Tile}

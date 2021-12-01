@@ -1,8 +1,8 @@
 ------------------------------------------------------------------------------
 --! @authors: Jason Hunter, Kayvia Harriott, Tashna-Gail Williams
 --! Created on: 2021-10-11
---! @version: 0.5.2
---! Last Updated: 2021-11-29 21:21:21
+--! @version: 0.5.4
+--! Last Updated: 2021-12-01 00:45:39
 ------------------------------------------------------------------------------
 
 model scrumble
@@ -732,17 +732,14 @@ operations
     --! @param DateTime d The player's date of birth
     initialise(u: String, e: String, d: DateTime)
     begin
-        declare r: Rank;
-
         self.username := u;
         self.email := e;
         self.dob := d;
         self.lastSeen := new DateTime();
         insert (self.lastSeen, self.user.scrumble.clock.time)
             into CurrentTime;
-
-        r := new Rank(self.user.id + 'Rank')
-            between (self.user.scrumble.leaderboard, self);
+        self.user.scrumble.leaderboard.add(self);
+        insert (self, self.user.scrumble.clock) into Watches;
     end
 
     pre argsAreValid: u.size() > 0 and e.size() > 5 and d <> null
@@ -1014,7 +1011,7 @@ operations
             mq.matchType = mType and mq.timed = timed);
         j := new Join() between (q, self);
         j.init();
-        --q.matchmaking();
+        q.matchmaking();
     end
     pre argIsValid: mType <> null and timed <> null
     pre noUntimedRankedMatches: mType = #RANKED implies timed
@@ -1831,15 +1828,10 @@ operations
                     destroy self.join->any(j | j.players = p1);
                     destroy self.join->any(j | j.players = p2);
 
-                    --rankDiff := (p1.rank.placement - p2.rank.placement).abs();
-                    -- #TODO, have ranks assigned upon initialisation of a
-                    -- player
-                    rankDiff := 100;
-                    Write('testing\n');
+                    rankDiff := (p1.rank.placement - p2.rank.placement).abs();
                     if (self.matchType = #RANKED and rankDiff <= 100) or
                         (self.matchType <> #RANKED and rankDiff <= 200)
                     then
-                        Write('testing2\n');
                         m := self.scrumble.mFactory.getMatch(p1, p2,
                             self.matchType, self.timed);
                         p1.update(self);
@@ -2018,12 +2010,33 @@ operations
     --! @return Real
     calcMultiplier(): Real =
         if type = #PLAY then
-            if words.category->excluding(#NONE)
+            -- category multiplier
+            (if words.category->excluding(#NONE)
             ->includes(match.category) then
                 1.5
-            else
-                1
-            endif
+            else 1 endif) *
+
+            -- skill multiplier
+            (if tiles->size() > 4 then
+                if match.timed = true then
+                    if words.length()->max() >= 6 then
+                        1.5
+                    else 1 endif
+                else -- if match.timed = false then
+                    let
+                        i = match.playHistory->indexOf(self),
+                        prevPTime =
+                            if self = match.playHistory->first() then
+                                match.duration.getStart()
+                            else
+                                match.playHistory->at(i - 1).time
+                            endif,
+                        pTime = time.difference(prevPTime)
+                    in if pTime < 15 then
+                        1.5
+                    else 1 endif
+                endif
+            else 1 endif)
         else 0 endif
     pre noPre: true
     post noPost: true
@@ -2178,7 +2191,7 @@ end -- TileBag Class
 
 class Word
 attributes
-    category: Category init: #NONE
+    category: Category
     status: WordStatus init: #VALID
 operations
     --! getWord doc
@@ -2187,6 +2200,8 @@ operations
     --! @return String
     getWord(): String = letters->iterate(l; ans: String = '' |
         ans + l.getLetter())
+    pre noPre: true
+    post noPost: true
 
     --! equals doc
     --! @brief Returns true if the string values of both words is equal
@@ -2196,6 +2211,15 @@ operations
     --! @return Boolean
     equals(ws: String): Boolean = getWord().equalsIgnoreCase(ws)
     pre argIsValid: ws <> null
+    post noPost: true
+
+    --! length doc
+    --! @brief Returns the length of the word
+    --!
+    --! @return Integer
+    length(): Integer = letters->size()
+    pre noPre: true
+    post noPost: true
 
     --protected setters
 end -- Word Class
@@ -2994,6 +3018,64 @@ operations
 
     pre matchFinished: o.status <> #INPROGRESS
     post noPost: true
+
+    --! add doc
+    --! @brief Adds a player to the leaderboard
+    --!
+    --! @param Player p The player to be added to the leaderboard
+    add(p: Player)
+    begin
+        new Rank (p.user.id + 'Rank') between (self, p);
+        self.refresh();
+    end
+
+    pre argIsValid: p <> null
+    post newRankCreated: (p.rank.oclIsNew() = true) and
+        p.rank.placement <> null
+
+    --! refresh doc
+    --! @brief Updates the ranks of all players
+    refresh()
+    begin
+        declare
+            pLst: Sequence(Player),
+            rVal: Integer,
+            r: Rank,
+            p: Player;
+
+        pLst := self.players->sortedBy(p | p.score);
+        for i in Sequence{1..pLst->size()} do
+            p := pLst->at(i);
+            if i = 1 then
+                rVal := 1;
+            else if pLst->at(i - 1).score = p.score then
+                rVal := pLst->at(i - 1).rank.placement;
+            else
+                rVal := i;
+            end; end;
+
+            destroy p.rank;
+            r := new Rank (p.user.id + 'Rank') between (self, p);
+            r.placement := rVal;
+        end;
+    end
+
+    pre playersExist: not players->isEmpty()
+    post ranksAreOrdered:
+        rank->forAll(r |
+            let
+                i = rank->indexOf(r),
+                higherRanks = rank->subOrderedSet(1, i - 1)
+            in rank->first() <> r implies
+                higherRanks->forAll(upperR |
+                    (upperR.placement < r.placement and
+                        upperR.players.score > r.players.score) or
+                    (upperR.placement = r.placement and
+                        upperR.players.score = r.players.score)
+                ) and
+                higherRanks.placement->asSet()->excludes(r.placement) implies
+                    r.placement = i
+        )
 end -- Leaderboard Class
 
 associationclass Rank
@@ -3133,7 +3215,7 @@ association RecievedRequest between
 end -- End RecievedRequest Association
 
 association RequestMatch between
-    MatchRequest[1] role matchReq
+    MatchRequest[0..1] role matchReq
     Match[0..1]
 end -- End RequestMatch Association
 
@@ -3196,7 +3278,7 @@ end -- End ValidWord Association
 
 association Spelling between
     Word[*] role words
-    Letter[*] role letters ordered
+    Letter[1..*] role letters ordered
 end -- End Spelling Association
 
 association Spelt between
@@ -3637,6 +3719,11 @@ context Dictionary
             (w1 <> w2 implies (not w1.equals(w2.getWord())))
         )
 -- End Dictionary Constraints
+
+context Word
+    -- All words must have a category assigned
+    inv hasCategory: category <> null
+-- End Word Constraints
 
 context Match
     -- Each match must have a duration
