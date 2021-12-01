@@ -1,8 +1,8 @@
 ------------------------------------------------------------------------------
 --! @authors: Jason Hunter, Kayvia Harriott, Tashna-Gail Williams
 --! Created on: 2021-10-11
---! @version: 0.5.5
---! Last Updated: 2021-12-01 03:58:29
+--! @version: 0.5.6
+--! Last Updated: 2021-12-01 13:30:52
 ------------------------------------------------------------------------------
 
 model scrumble
@@ -697,6 +697,39 @@ end -- Admin Class
 
 ------------------------------Player Interactions-----------------------------
 
+class RequestFactory
+operations
+    --! getReq doc
+    --! @brief Creates and returns the desired request type
+    --!
+    --! @param RequestType t The type of request to be created
+    --! @param Player sender The player sending the request
+    --! @param Player rcvr The player receiving the request
+    --! @return Request
+    getReq(t: RequestType, sender: Player, rcvr: Player): Request
+    begin
+        declare r: Request;
+
+        if t = #MATCH then
+            r := new MatchRequest();
+        else
+            r := new Request();
+        end;
+
+        insert (sender, r) into SentRequest;
+        insert (rcvr, r) into RecievedRequest;
+
+        insert (sender, r) into Watches;
+        insert (rcvr, r) into Watches;
+
+        r.init(t);
+        result := r;
+    end
+    pre argsAreValid: t <> null
+    post validResult: (t = #MATCH and result.oclIsTypeOf(MatchRequest)) or
+        (t <> #MATCH and result.oclIsTypeOf(Request))
+end -- RequestFactory Class
+
 class Player < Observer, Role
 attributes
     username: String
@@ -942,8 +975,8 @@ operations
     pre chatOpen: chatState->one(cs | cs.status = #OPEN)
     post chatProperlyClosed:
         let
-            openedChat = chatState@pre
-                ->any(cs | cs.status = #OPEN).chatRooms
+            openedChat = chatState
+                ->any(cs | cs.status@pre = #OPEN).chatRooms
         in chatState->one(cs |
             openedChat = cs.chatRooms and cs.status = #CLOSED
             and cs.lastOpened.equalsNow())
@@ -1034,8 +1067,15 @@ operations
     --! @param Chat c The chat to send the message in
     --! @param String msg The message to be sent
     sendMsg(c: Chat, msg: String)
+    begin
+        self.updateLastSeen();
+        c.createMessage(self, msg);
+    end
     pre playerIsOnline: status <> #OFFLINE
     pre argsAreValid: c <> null and msg.size() > 0
+    pre participantsNotBlocked:
+        c.participants->forAll(p1, p2 |
+            p1 <> p2 implies p1.blocked->excludes(p2))
     post msgSent:
         let
             newMsg = c.messages->last()
@@ -1050,17 +1090,27 @@ operations
     --! @param Player p The player to send the request to
     --! @param RequestType t The type of request to be sent
     sendReq(p: Player, t: RequestType)
-    pre playerIsOnline: status <> #OFFLINE
+    begin
+        declare r: Request;
+        self.updateLastSeen();
+        r := self.user.scrumble.rFactory.getReq(t, self, p);
+    end
+    pre playerIsOnline: status = #ONLINE or status = #AWAY
     pre argsAreValid: p <> null and t <> null
+    pre noExistingPendingReqOfSameType:
+        let
+            allReqs = sentReqs->union(rcvdReqs),
+            pending = allReqs->select(r | r.status = #PENDING and r.type = t)
+        in not pending->exists(pReq |
+            Set{pReq.reqSender, pReq.reqRcvr} = Set{self, p})
     post reqSent:
         let
             newReq = sentReqs->select(req | req.oclIsNew())
         in newReq->size() = 1 and
             sentReqs@pre->union(newReq) = sentReqs and
             p.rcvdReqs@pre->union(newReq) = p.rcvdReqs and
-            newReq->one(req | req.sentDate.equalsNow())
-            -- should also check that the status is pending or blocked on the
-            -- receivers side
+            newReq->one(req | req.sentDate.equalsNow() and
+                req.status = #PENDING or req.status = #LOST)
 
     --! addressReq doc
     --! @brief Updates the status of a received request
@@ -1069,13 +1119,37 @@ operations
     --! @param Boolean action Boolean representing accepting (true) or
     --!                   rejecting (false) the request
     addressReq(req: Request, action: Boolean)
-    pre playerIsOnline: status <> #OFFLINE
+    begin
+        self.updateLastSeen();
+        if action = true then
+            req.acceptReq();
+            if req.type = #FRIEND then
+                insert (self, req.reqSender) into FriendList;
+                insert (req.reqSender, self) into FriendList;
+            end;
+        else
+            req.rejectReq();
+        end;
+    end
+    pre playerIsOnline: status = #ONLINE or status = #AWAY
     pre argsAreValid: req <> null and action <> null
     pre reqIsPending: req.status = #PENDING
+    pre noExistingAcceptedReqOfSameType:
+        let
+            allReqs = sentReqs->union(rcvdReqs),
+            accepted = allReqs->select(r | r.status = #ACCEPTED and
+                r.type = req.type)
+        in not accepted->exists(a |
+            Set{a.reqSender, a.reqRcvr} = Set{req.reqSender, req.reqRcvr})
     post reqAddressed: (action and req.status = #ACCEPTED) or
         ((not action) and req.status = #REJECTED)
     post activePeriodSet: req.activePeriod <> null and
         req.activePeriod.getStart().equalsNow()
+    post friendListsUpdated: req.type = #FRIEND implies
+        (req.reqSender.friends@pre->including(self) =
+            req.reqSender.friends
+        and
+        friends@pre->including(req.reqSender) = friends)
 
     --! blockPlayer doc
     --! @brief Adds a player to the player's blocked list
@@ -1198,6 +1272,26 @@ attributes
     sentDate: DateTime
     seenDate: DateTime
 operations
+    --! init doc
+    --! @brief Initialises the message
+    --!
+    --! @param String msg The message body
+    init(msg: String)
+    begin
+        declare now: DateTime;
+        self.id := self.msgSender.user.id + self.msgRcvr.user.id + 'msg' +
+            self.chat.messages->select(m |
+                m.msgSender = self.msgSender)->size().toString();
+        self.message := msg;
+        self.sentDate := new DateTime();
+
+        now := self.msgSender.user.scrumble.clock.time;
+        insert (self.sentDate, now) into CurrentTime;
+        self.sentDate.setToNow();
+    end
+    pre argIsValid: msg.size() > 0
+    post attributesSet: sentDate.equalsNow() and message = msg
+
     --! getBody doc
     --! @brief Returns the body/contents of the message
     --!
@@ -1315,16 +1409,14 @@ operations
         insert (self, m) into PlayerChat;
         insert (sender, m) into SentMessage;
         insert (rcvr, m) into RecievedMessage;
-        m.id := sender.user.id + rcvr.user.id + 'msg' +
-            self.messages->select(m |
-                m.msgSender = sender)->size().toString();
-        m.message := msg;
-        m.sentDate := new DateTime();
+        m.init(msg);
 
-        insert (m.sentDate, now) into CurrentTime;
-        m.sentDate.setToNow();
-
-        --rcvr.update(self);
+        if self.chatState->any(cs | cs.participants = rcvr).status = #OPEN
+        then
+            m.view();
+        else -- If chat is closed
+            rcvr.update(self);
+        end;
     end
 
     pre isOpen: chatState.status->includes(#OPEN)
@@ -1380,7 +1472,7 @@ operations
     pre notOpen: status = #CLOSED
     post openned: status = #OPEN
     post latestMsgsSeen: not chatRooms.messages->exists(m |
-        m.status = #UNSEEN and participants->excludes(m.msgSender))
+        m.status = #UNSEEN and participants <> m.msgSender)
 
     --! setClosed doc
     --! @brief Sets the chat state to #CLOSED
@@ -1394,6 +1486,9 @@ operations
     pre openned: status = #OPEN
     post closed: status = #CLOSED
     post lastOpenedSet: lastOpened.equalsNow()
+    post allMsgsUpToCloseAreSeen: not chatRooms.messages->exists(m |
+        m.status = #UNSEEN and m.sentDate.before(lastOpened) and
+        participants <> m.msgSender)
 end -- End ChatState Association Class
 
 class Request < Identifiable, Observable
@@ -1415,11 +1510,15 @@ operations
         self.sentDate.setToNow();
         self.type := t;
 
-        insert (self.reqSender, self) into Watches;
-        insert (self.reqRcvr, self) into Watches;
+        if self.reqSender.blocked->includes(self.reqRcvr) or
+            self.reqRcvr.blocked->includes(self.reqSender)
+        then
+            self.blockReq();
+        end;
     end
     pre argIsValid: t <> null
     post attributesSet: sentDate.equalsNow() and type = t
+        and activePeriod = null
 
     --! isSenfValid doc
     --! @brief Returns true if the request state is valid
@@ -1439,7 +1538,7 @@ operations
             activePeriod.getStart().after(sentDate) and
             activePeriod.getEnd() = null) or
         (Set{#PENDING, #REJECTED, #LOST}->includes(status) and
-            activePeriod <> null) or
+            activePeriod = null) or
         (status = #RECINDED and
             activePeriod <> null and activePeriod.isSelfValid() and
             activePeriod.getStart().after(sentDate) and
@@ -1447,9 +1546,9 @@ operations
     pre noPre: true
     post noPost: true
 
-    --! accept doc
+    --! acceptReq doc
     --! @brief Mark the request as accepted
-    accept()
+    acceptReq()
     begin
         declare d: DateTime;
         self.status := #ACCEPTED;
@@ -1469,18 +1568,18 @@ operations
     post isStillValid: isSelfValid()
     post periodActivated: activePeriod.getStart().equalsNow()
 
-    --! reject doc
+    --! rejectReq doc
     --! @brief Mark the request as rejected
-    reject()
+    rejectReq()
     begin self.status := #REJECTED; end
     pre isPending: status = #PENDING
     pre isValid: isSelfValid()
     post isStillValid: isSelfValid()
     post statusUpdated: status = #REJECTED
 
-    --! recind doc
+    --! recindReq doc
     --! @brief Mark the request as recinded
-    recind()
+    recindReq()
     begin
         declare d: DateTime;
         self.status := #RECINDED;
@@ -1497,9 +1596,9 @@ operations
     post statusUpdated: status = #RECINDED
     post periodDeactivated: activePeriod.getEnd().equalsNow()
 
-    --! block doc
+    --! blockReq doc
     --! @brief Mark the request as lost
-    block()
+    blockReq()
     begin self.status := #LOST; end
     pre isPending: status = #PENDING
     pre isValid: isSelfValid()
@@ -1516,10 +1615,10 @@ statemachines
         lost: final [status = #LOST]
     transitions
         start -> pending {create}
-        pending -> accepted {accept()}
-        pending -> rejected {reject()}
-        pending -> lost {block()}
-        accepted -> recinded {recind()}
+        pending -> accepted {acceptReq()}
+        pending -> rejected {rejectReq()}
+        pending -> lost {blockReq()}
+        accepted -> recinded {recindReq()}
     end
 end -- Request Class
 
@@ -1528,9 +1627,9 @@ attributes
     matchType: MatchType
     timed: Boolean
 operations
-    --! accept doc
+    --! acceptReq doc
     --! @brief Mark the request as accepted and creates a new match
-    accept()
+    acceptReq()
     begin
         declare d: DateTime, m: Match;
         self.status := #ACCEPTED;
@@ -1813,7 +1912,6 @@ operations
             end;
         end; end;
     end
-
     pre noPre: true
     post noPost: true
 end -- MatchFactory Class
@@ -3199,6 +3297,11 @@ association ScrumbleLboard between
     Leaderboard[1]
 end -- ScrumbleLboard Association
 
+association ScrumbleReqFactory between
+    Scrumble[1]
+    RequestFactory[1] role rFactory
+end -- ScrumbleReqFactory Association
+
 association ScrumbleMatchBuilder between
     Scrumble[1]
     MatchBuilder[1] role mBuilder
@@ -3490,8 +3593,7 @@ context Player
             accepted = frAndMsgReqs->select(req | req.status = #ACCEPTED)
         in pending->forAll(p | accepted->forAll(a |
             p.type = a.type implies
-                (Set{p.reqSender, p.reqRcvr} -
-                    Set{a.reqSender, a.reqRcvr})->size() > 0
+                Set{p.reqSender, p.reqRcvr} = Set{a.reqSender, a.reqRcvr}
         ))
 
     -- For a given pair or players, there may not be any pending or accepted
@@ -3609,7 +3711,8 @@ context Message
 
     -- Messages may only be seen after they have been sent
     inv validSeenDate: (status = #UNSEEN and seenDate = null) or
-        (status = #SEEN and seenDate <> null and seenDate.after(sentDate))
+        (status = #SEEN and seenDate <> null and
+            (not seenDate.before(sentDate)))
 -- End Message Constraints
 
 context Request

@@ -1,8 +1,8 @@
 ------------------------------------------------------------------------------
 --! @authors: Jason Hunter, Kayvia Harriott, Tashna-Gail Williams
 --! Created on: 2021-11-02
---! @version: 0.4.8
---! Last Updated: 2021-12-01 00:45:22
+--! @version: 0.4.9
+--! Last Updated: 2021-12-01 13:30:34
 ------------------------------------------------------------------------------
 
 -- PLEASE DON'T EDIT THIS FILE DIRECTLY, COPY AND PASTE IT AND WORK ON THAT
@@ -18,9 +18,13 @@ reset
 !new Clock('clk')
 !insert (scrumble, clk) into ScrumbleClock
 !new DateTime('rightNow')
-!rightNow.initialise(2021, 10, 22, 12, 59, 59)
+--!rightNow.initialise(2021, 10, 22, 12, 59, 59)
+!rightNow.initialise(2021, 10, 20, 18, 05, 13)
 !insert (rightNow, rightNow) into CurrentTime
 !clk.time := rightNow
+
+!new RequestFactory('rFactory')
+!insert (scrumble, rFactory) into ScrumbleReqFactory
 
 !new MatchFactory('mFactory')
 !insert (scrumble, mFactory) into ScrumbleMatchFactory
@@ -141,51 +145,46 @@ reset
 
 --------Friend Request between Players 1 and 2
 
-!new DateTime('frReq1SentDate')
-!insert (frReq1SentDate, rightNow) into CurrentTime
-!frReq1SentDate.initialise(2021, 10, 20, 18, 05, 13)
+--!frReq1SentDate.initialise(2021, 10, 20, 18, 05, 13)
+--!frReq1AddrDate.initialise(2021, 10, 21, 6, 05, 21)
 
-!new DateTime('frReq1AddrDate')
-!insert (frReq1AddrDate, rightNow) into CurrentTime
-!frReq1AddrDate.initialise(2021, 10, 21, 6, 05, 21)
+!player1.sendReq(player2, #FRIEND)
 
-!new Period('frReq1Period')
-!frReq1Period.addStart(frReq1AddrDate)
+-- Running the for loop is slow so initialize right now to 1 second before the
+-- time you want then scrumble.clock.tick() once
+--!for tick in Sequence{1..43194} do scrumble.clock.tick(); end
+!rightNow.initialise(2021, 10, 21, 6, 05, 20)
+!scrumble.clock.tick()
+? rightNow.makeHumanReadable(rightNow.secondsSinceEposh)
 
-!new Request('frReq1P1P2')
-!frReq1P1P2.id := 'frReq1'
-!frReq1P1P2.type := #FRIEND
-!frReq1P1P2.status := #ACCEPTED
-!frReq1P1P2.sentDate := frReq1SentDate
-!frReq1P1P2.activePeriod := frReq1Period
-!insert (player1,frReq1P1P2) into SentRequest
-!insert (player2,frReq1P1P2) into RecievedRequest
-
-!insert (player1, player2) into FriendList
-!insert (player2, player1) into FriendList
+!player2.addressReq(player2.rcvdReqs->any(r | r.reqSender = player1 and r.type = #FRIEND and r.status = #PENDING), true)
 
 --------Chat between Players 1 and 2
 
-!new Chat('chatp1p2')
-!new ChatState('chat1p1') between (chatp1p2,player1)
-!chat1p1.status := #OPEN
-!new ChatState('chat1p2') between (chatp1p2,player2)
-!chat1p2.status := #OPEN
+!rightNow.initialise(2021, 10, 22, 12, 35, 05)
+!scrumble.clock.tick()
+? rightNow.makeHumanReadable(rightNow.secondsSinceEposh)
 
-!rightNow.initialise(2021, 10, 22, 12, 35, 06)
+!new Chat('chatp1p2')
+!new ChatState('chat1p1') between (chatp1p2, player1)
+!chat1p1.lastOpened := new DateTime()
+!insert (chat1p1.lastOpened, rightNow) into CurrentTime
+!new ChatState('chat1p2') between (chatp1p2, player2)
+!chat1p2.lastOpened := new DateTime()
+!insert (chat1p2.lastOpened, rightNow) into CurrentTime
+
+!player1.openChat(chatp1p2)
+!for tick in Sequence{1..20} do clk.tick(); end
 !chatp1p2.createMessage(player2, 'This is a test')
 
-!for tick in Sequence{1..20} do clk.tick(); end
-!chatp1p2.view(player1)
-
+!player2.openChat(chatp1p2)
 !for tick in Sequence{1..19} do clk.tick(); end
 !chatp1p2.createMessage(player1, 'This is a test')
 
 !for tick in Sequence{1..14} do clk.tick(); end
-!chatp1p2.view(player2)
 
-!chat1p1.lastOpened := chatp1p2.messages->last().sentDate
-!chat1p2.lastOpened := chatp1p2.messages->last().seenDate
+!player1.closeChat()
+!player2.closeChat()
 
 --------Match Request between Players 1 and 2
 
@@ -213,6 +212,8 @@ reset
 
 --------Player 1 and 2 joining the queue
 
+? rightNow.makeHumanReadable(rightNow.secondsSinceEposh)
+
 !player1.joinQueue(#UNRANKED, false)
 !player2.joinQueue(#UNRANKED, false)
 
@@ -224,6 +225,7 @@ reset
 -- At this point rightNow = 2021-10-22 12:35:59
 -- Changing the time before this point will change the letters assigned to
 -- each Rack meaning you'll have to make new words all over again
+? rightNow.makeHumanReadable(rightNow.secondsSinceEposh)
 
 ? m1Rack1.tiles
 !tSeq := OrderedSet{m1R5Tile, m1E5Tile, m1M2Tile, m1O3Tile, m1T1Tile, m1E9Tile}
@@ -238,6 +240,7 @@ reset
 
 !for tick in Sequence{1..11} do clk.tick(); end
 ? m1Rack1.tiles
+-- invalid play test
 --!tSeq := OrderedSet{m1J1Tile, m1E11Tile, m1E2Tile, m1R2Tile, m1I1Tile, m1N4Tile, m1G2Tile}
 !tSeq := OrderedSet{m1J1Tile, m1E11Tile, m1E2Tile, m1I1Tile, m1N4Tile, m1G2Tile}
 !m1Rack1.triggerPlay(5, 8, #VERTICAL, tSeq)
