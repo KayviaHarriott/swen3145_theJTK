@@ -975,6 +975,7 @@ operations
         self.status := #PLAYING;
         self.rack->any(r | r.matchHistory = m).matchOpen := true;
     end
+    pre argIsValid: m <> null
     pre matchClosed: rack->any(r | r.matchHistory = m).matchOpen = false
     pre notInGame: status = #ONLINE or status = #AWAY
     post inGame: status = #PLAYING
@@ -990,6 +991,7 @@ operations
         self.status := #ONLINE;
         self.rack->any(r | r.matchHistory = m).matchOpen := false;
     end
+    pre argIsValid: m <> null
     pre matchOpened: rack->any(r | r.matchHistory = m).matchOpen = true
     pre inGame: status = #PLAYING
     post notInGame: status = #ONLINE
@@ -1647,8 +1649,9 @@ operations
             tpt: Sequence(Integer),
             l: Letter,
             t: Tile,
-            p1R: Rack,
-            p2R: Rack;
+            pR: Rack,
+            pLst: Sequence(Player),
+            rand: Integer;
 
         insert (m, self.scrumble.dictionary) into WordCheck;
         insert (self.scrumble.leaderboard, m) into Watches;
@@ -1687,10 +1690,15 @@ operations
             end;
         end;
 
-        p1R := new Rack(m.id + 'Rack1') between (p2, m);
-        p1R.drawTiles();
-        p2R := new Rack(m.id + 'Rack2') between (p1, m);
-        p2R.drawTiles();
+        pLst := Sequence{p1, p2};
+        for i in Sequence{1..pLst->size()} do
+            rand := self.scrumble.clock.time.secondsSinceEposh
+                .mod(pLst->size()) + 1;
+            pR := new Rack(m.id + 'Rack' + i.toString())
+                between (pLst->at(rand), m);
+            pR.drawTiles();
+            pLst := pLst->excluding(pLst->at(rand));
+        end;
     end
 
     pre argsAreValid: p1 <> null and p2 <> null and p1 <> p2 and m <> null
@@ -1812,8 +1820,7 @@ operations
             allPlayers: Sequence(Player);
 
         allPlayers := self.join
-            ->sortedBy(j | j.joinedAt.secondsSinceEposh)
-            ->reverse().players;
+            ->sortedBy(j | j.joinedAt.secondsSinceEposh).players;
         for i in Sequence{1..allPlayers->size()} do
             for j in Sequence{(i+1)..allPlayers->size()} do
                 p1 := allPlayers->at(i);
@@ -1825,13 +1832,12 @@ operations
                     ->select(b | b.status = #BLOCKED).blocked->asSet();
 
                 if p1Blocked->excludes(p2) and p2Blocked->excludes(p1) then
-                    destroy self.join->any(j | j.players = p1);
-                    destroy self.join->any(j | j.players = p2);
-
                     rankDiff := (p1.rank.placement - p2.rank.placement).abs();
                     if (self.matchType = #RANKED and rankDiff <= 100) or
                         (self.matchType <> #RANKED and rankDiff <= 200)
                     then
+                        destroy self.join->any(j | j.players = p1);
+                        destroy self.join->any(j | j.players = p2);
                         m := self.scrumble.mFactory.getMatch(p1, p2,
                             self.matchType, self.timed);
                         p1.update(self);
@@ -1887,7 +1893,7 @@ end -- Join Association Class
 
 associationclass Rack
 between
-    Player[2] role players
+    Player[2] role players ordered
     Match[*] role matchHistory ordered
 attributes
     matchOpen: Boolean init: false
@@ -2551,7 +2557,10 @@ operations
     end
 
     pre argIsValid: r <> null
-    pre isPlayersTurn: playHistory->last().rack.players <> r.players
+    pre isPlayersTurn:
+        let
+            turn = playHistory->size().mod(players->size()) + 1
+        in players->at(turn) = r.players
     pre matchNotFinished: status = #INPROGRESS
     post playMade:
         let
@@ -2585,7 +2594,10 @@ operations
     end
 
     pre argIsValid: r <> null
-    pre isPlayersTurn: playHistory->last().rack.players <> r.players
+    pre isPlayersTurn:
+        let
+            turn = playHistory->size().mod(players->size()) + 1
+        in players->at(turn) = r.players
     pre matchNotFinished: status = #INPROGRESS
     post playMade:
         let
@@ -2678,7 +2690,10 @@ operations
     end
 
     pre playIsValid: playHelperIsPlayValid(sRow, sCol, dir, tileSeq)
-    pre isPlayersTurn: playHistory->last().rack.players <> r.players
+    pre isPlayersTurn:
+        let
+            turn = playHistory->size().mod(players->size()) + 1
+        in players->at(turn) = r.players
     pre matchNotFinished: status = #INPROGRESS
     post playMade:
         let
@@ -2803,7 +2818,7 @@ operations
     tilePointsAreValid(): Boolean =
         let
             bagTiles = board.tileBag.tiles,
-            rackTiles = rack.tiles,
+            rackTiles = rack.tiles->asSet(),
             boardTiles = board.slots.tile,
             allTiles = bagTiles->union(rackTiles->union(boardTiles))
                 ->excluding(null)
@@ -3750,15 +3765,10 @@ context Match
 
     -- Plays must alternate between players, ie the game should be turn based
     inv playsAlternateBetweenPlayers:
-        let
-            player1 = playHistory->at(1).rack.players,
-            player2 = playHistory->at(2).rack.players
-        in playHistory->forAll(p |
-            if playHistory->indexOf(p).mod(2) = 1 then
-                player1 = p.rack.players
-            else
-                player2 = p.rack.players
-            endif
+        playHistory->forAll(p |
+            let
+                turn = (playHistory->indexOf(p) - 1).mod(players->size()) + 1
+            in players->at(turn) = p.rack.players
         )
 
     -- Ensure all Tiles with the same letter have the same score
