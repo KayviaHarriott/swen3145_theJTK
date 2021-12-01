@@ -2938,7 +2938,6 @@ operations
             self.updateHelperMatch(o.oclAsType(Match));
         end;
     end
-
     pre noPre: true
     post noPost: true
 
@@ -3024,7 +3023,6 @@ operations
             end; end;
         end;
     end
-
     pre matchFinished: o.status <> #INPROGRESS
     post noPost: true
 
@@ -3037,7 +3035,6 @@ operations
         new Rank (p.user.id + 'Rank') between (self, p);
         self.refresh();
     end
-
     pre argIsValid: p <> null
     post newRankCreated: (p.rank.oclIsNew() = true) and
         p.rank.placement <> null
@@ -3068,7 +3065,6 @@ operations
             r.placement := rVal;
         end;
     end
-
     pre playersExist: not players->isEmpty()
     post ranksAreOrdered:
         rank->forAll(r |
@@ -3707,6 +3703,12 @@ context Tile
     -- Ensure that tiles are held by only one object at a time
     inv onlyInOnePlace:
         Set{tileBag, rack, slot}->excluding(null)->size() = 1
+
+    -- Tiles used in a play must be on the board
+    -- Tiles not used in a play must either be in a rack or the tile bag
+    inv tilesInAValidPlace:
+        (play = null and (rack <> null or tileBag <> null)) or
+        (play <> null and slot <> null and play.match = slot.board.match)
 -- End Tile Constraints
 
 context Slot
