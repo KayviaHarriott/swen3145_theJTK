@@ -682,16 +682,20 @@ operations
     --!
     --! @param Report r The report to update the status of
     resolveReport(r: Report)
+    begin
+        r.status := #RESOLVED
+    end
     pre argIsValid: r <> null
     pre isUnderReview: r.getStatus() = #UNDER_REVIEW
     post mutationSuccess: r.getStatus() = #RESOLVED
 
-    --! addWprd doc
+    --! addWord doc
     --! @brief Creates a new word and adds it to the dictionary
     --!
-    --! @param Type <var> Description
-    --! @param Type <var> Description
+    --! @param Letter w Sequence of letters that make up the word
+    --! @param Category cat Category of word added
     addWord(w: Sequence(Letter), cat: Category)
+    --add to dictionary
     -- #TODO Pre and Post
 
     --! depricatedWord doc
@@ -708,6 +712,11 @@ operations
     --!
     --! @param Player p Player to be banned
     banPlayer(p: Player)
+    begin
+        p.status := #BANNED;
+    end
+    pre : p <> null
+    post : p.status = #BANNED;
     -- Sets their status to banned
     -- #TODO Pre and Post
 end -- Admin Class
@@ -3090,6 +3099,7 @@ operations
     --!
     --! @return Integer
     getRank(): Integer = placement
+    
 end -- Rank Association Class
 
 ------------------------------------------------------------------------------
