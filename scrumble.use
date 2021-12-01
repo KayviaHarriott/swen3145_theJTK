@@ -11,7 +11,19 @@ model scrumble
 -- Enumerations
 ------------------------------------------------------------------------------
 
-enum Action {a, really, long, list, of, permissions}
+enum Action {
+    viewPlayerProfile,
+    sendFriendRequest,
+    sendMessageRequest,
+    sendMatchRequest,
+    sendMessage,
+
+    addWord,
+    deprecateWord,
+    banPlayer,
+    openReport,
+    closeReport
+}
 
 enum BlockStatus {BLOCKED, UNBLOCKED}
 enum ChatStatus {OPEN, CLOSED}
@@ -625,7 +637,7 @@ operations
     end
 
     pre noPre: true
-    post noPost:true
+    post noPost: true
 end -- Clock Class
 
 class User < Identifiable
@@ -707,10 +719,43 @@ attributes
     username: String
     email: String
     dob: DateTime
+    lastSeen: DateTime
     score: Integer init: 500
     status: PlayerStatus init: #OFFLINE
     state: ProfileState init: #PRIVATE
 operations
+    --! initialise doc
+    --! @brief Initializes the player
+    --!
+    --! @param String u The player's username
+    --! @param String e The player's email address
+    --! @param DateTime d The player's date of birth
+    initialise(u: String, e: String, d: DateTime)
+    begin
+        declare r: Rank;
+
+        self.username := u;
+        self.email := e;
+        self.dob := d;
+        self.lastSeen := new DateTime();
+        insert (self.lastSeen, self.user.scrumble.clock.time)
+            into CurrentTime;
+
+        r := new Rank(self.user.id + 'Rank')
+            between (self.user.scrumble.leaderboard, self);
+    end
+
+    pre argsAreValid: u.size() > 0 and e.size() > 5 and d <> null
+    pre userLinkedToScrumble: user.scrumble <> null
+    pre usernameIsUnique:
+        let
+            allPlayers = user.scrumble.users.role->select(r |
+                r.oclIsTypeOf(Player) = true)
+        in allPlayers->collect(p | p.oclAsType(Player).username)->asSet()
+            ->excludes(u)
+    post attributesSet: username = u and email = e and dob = d
+    post hasNewRank: rank.oclIsNew() = true
+
     --getters (we'll have to restrict what may be obtained in the method I
     -- think)
 
@@ -722,17 +767,39 @@ operations
     begin
         if (o.oclIsTypeOf(Chat) = true) then
             self.updateHelperChat(o.oclAsType(Chat));
+        else if (o.oclIsTypeOf(Clock)) then
+            self.updateHelperClock(o.oclAsType(Clock));
         else if (o.oclIsTypeOf(Request)) then
             self.updateHelperRequest(o.oclAsType(Request));
         else if (o.oclIsTypeOf(Report)) then
             self.updateHelperReport(o.oclAsType(Report));
         else if (o.oclIsTypeOf(MatchRequest)) then
             self.updateHelperMatchRequest(o.oclAsType(MatchRequest));
-        end; end; end; end;
+        end; end; end; end; end;
     end
 
     pre argIsValid: o <> null
     post noPost: true
+
+    --! updateHelperClock doc
+    --! @brief Notifies the player that the game clock has updated and updates
+    --!        their status accordingly
+    --!
+    --! @param Clock o The game clock
+    updateHelperClock(o: Clock)
+    begin
+        -- If the player has been online but inactive for more than 5 minutes
+        if self.status = #ONLINE and
+            self.user.scrumble.clock.time.difference(self.lastSeen) > 300
+        then
+            self.status := #AWAY;
+        end;
+    end
+
+    pre noPre: true
+    post statusUpdatedCorrectly: (status@pre = #ONLINE and
+        user.scrumble.clock.time.difference(self.lastSeen) > 300) implies
+        status = #AWAY
 
     --! updateHelperMatch doc
     --! @brief Notifies the player of a match event if they don't have the
@@ -745,7 +812,7 @@ operations
         -- check if match is closed
         if (o.rack->any(r | r.players = self).matchOpen = false) then
             n := new Notification();
-            n.init(self, o.oclAsType(Observable));
+            n.init(self, o);
         end;
     end
 
@@ -768,7 +835,7 @@ operations
         if (o.chatState->any(cs | cs.participants = self).status = #CLOSED)
         then
             n := new Notification();
-            n.init(p, o.oclAsType(Observable));
+            n.init(self, o);
         end;
     end
 
@@ -795,7 +862,7 @@ operations
     updateHelperRequest(o: Request)
     begin
         declare r: Request;
-        r.init(o.status, o.sentDate,o.activePeriod,o.type);
+        -- Generate a notification if the receiving player isn't online
     end
     pre noPre: true
     post noPost: true
@@ -810,9 +877,9 @@ operations
         declare re: Report;
         --re.init(o.type, o.description, self);
     end
+    -- #TODO Pre and Post
     pre noPre: true
     post noPost: true
-    -- #TODO Pre and Post
 
     --! updateHelperMatchReq doc
     --! @brief update helper function for matchRequest events
@@ -822,39 +889,162 @@ operations
     begin
         --declare
     end
+    -- #TODO Pre and Post
     pre noPre: true
     post noPost: true
-    -- #TODO Pre and Post
+
+    ---------------------------------Accessors--------------------------------
+
+    getUsername(): String = username
+    getEmail(): String = email
+    getScore(): Integer = score
+    getStatus(): PlayerStatus = status
+
+    ---------------------------------Mutators---------------------------------
+
+    updateLastSeen()
+    begin
+        self.lastSeen.setToNow();
+        if self.status = #AWAY then
+            self.status := #ONLINE;
+        end;
+    end
+    pre notOffline: status <> #OFFLINE
+    post lastSeenUpdated: lastSeen.equalsNow()
+
+    --------------------------------Operations--------------------------------
+
+    --! openApp doc
+    --! @brief Executes actions that should occur once the player opens the
+    --!        app or logs in
+    openApp()
+    begin
+        self.status := #ONLINE;
+        self.updateLastSeen();
+    end
+    pre notOnline: status = #OFFLINE
+    post statusUpdated: status = #ONLINE
+
+    --! closeApp doc
+    --! @brief Executes actions that should occur once the player closes the
+    --!        app or logs out
+    closeApp()
+    begin
+        self.updateLastSeen();
+        self.status := #OFFLINE;
+    end
+    pre isNotOffline: status <> #OFFLINE
+    post statusUpdated: status = #OFFLINE
+
+    --! openChat doc
+    --! @brief Opens the specified chat
+    --!
+    --! @param Chat c The chat to be opened
+    openChat(c: Chat)
+    begin
+        self.updateLastSeen();
+        self.chatState->any(cs | cs.chatRooms = c).setOpen();
+    end
+    pre playerIsOnline: status <> #OFFLINE
+    pre argIsValid: c <> null
+    pre noChatOpen: not chatState->exists(cs | cs.status = #OPEN)
+    post onlySpecifiedChatOpen: chatState
+        ->any(cs | cs.status = #OPEN).chatRooms = c
+
+    --! closeChat doc
+    --! @brief Closes the currently opened chat
+    closeChat()
+    begin
+        self.updateLastSeen();
+        self.chatState->any(cs | cs.status = #OPEN).setClosed();
+    end
+    pre playerIsOnline: status <> #OFFLINE
+    pre chatOpen: chatState->one(cs | cs.status = #OPEN)
+    post chatProperlyClosed:
+        let
+            openedChat = chatState@pre
+                ->any(cs | cs.status = #OPEN).chatRooms
+        in chatState->one(cs |
+            openedChat = cs.chatRooms and cs.status = #CLOSED
+            and cs.lastOpened.equalsNow())
+
+    --! openMatch doc
+    --! @brief Opens the specified match
+    --!
+    --! @param Match m The match to be opened
+    openMatch(m: Match)
+    begin
+        self.updateLastSeen();
+        self.status := #PLAYING;
+        self.rack->any(r | r.matchHistory = m).matchOpen := true;
+    end
+    pre matchClosed: rack->any(r | r.matchHistory = m).matchOpen = false
+    pre notInGame: status = #ONLINE or status = #AWAY
+    post inGame: status = #PLAYING
+    post matchOpened: rack->any(r | r.matchHistory = m).matchOpen = true
+
+    --! closeMatch doc
+    --! @brief Closes the specified match
+    --!
+    --! @param Match m The match to be opened
+    closeMatch(m: Match)
+    begin
+        self.updateLastSeen();
+        self.status := #ONLINE;
+        self.rack->any(r | r.matchHistory = m).matchOpen := false;
+    end
+    pre matchOpened: rack->any(r | r.matchHistory = m).matchOpen = true
+    pre inGame: status = #PLAYING
+    post notInGame: status = #ONLINE
+    post matchClosed: rack->any(r | r.matchHistory = m).matchOpen = false
+
+    -- #TODO Methods to set the status to away
 
     --! joinQueue doc
     --! @brief Adds the player to the match queue
     --!
-    --! @param Queue q The queue to be joined
-    joinQueue(q: Queue)
+    --! @param MatchType mType The type of match the player wants to play
+    --! @param Boolean timed If the match should be timed or not
+    joinQueue(mType: MatchType, timed: Boolean)
     begin
-        new Join() between (q, self);
-    end
+        declare q: Queue, j: Join;
+        self.updateLastSeen();
 
-    pre argIsValid: q <> null
-    pre playerIsOnline: status = #ONLINE
-    pre playerNotInQueue: queues->size() = 1
-    post joinSuccessful: (q@pre.players->including(self) = q.players) and
-        join.joinedAt->forAll(d | d.equalsNow()) and
-        (queues->size() = 1)
+        q := self.user.scrumble.queues->any(mq |
+            mq.matchType = mType and mq.timed = timed);
+        j := new Join() between (q, self);
+        j.init();
+        --q.matchmaking();
+    end
+    pre argIsValid: mType <> null and timed <> null
+    pre noUntimedRankedMatches: mType = #RANKED implies timed
+    pre playerIsOnline: status = #ONLINE or status = #AWAY
+    pre playerNotInQueue: not queues->exists(q |
+        q.matchType = mType and q.timed = timed)
+    post joinSuccessful:
+        let
+            q = user.scrumble.queues->any(mq |
+                mq.matchType = mType and mq.timed = timed),
+            newJoin = join->any(j | j.queues = q),
+            lastMatch = matchHistory->last()
+        in ((q.players@pre->including(self) = q.players) and
+            newJoin.joinedAt.equalsNow() and (newJoin.oclIsNew() = true))
+            or
+            (matchHistory@pre->including(lastMatch) = matchHistory and
+            (lastMatch.oclIsNew() = true))
 
     --! leaveQueue doc
     --! @brief Removes the player from the match queue they are currently in
-    leaveQueue()
+    --!
+    --! @param Queue q The queue the player wants to leave
+    leaveQueue(q: Queue)
     begin
-        for q in self.queues do
-            destroy q;
-        end;
+        self.updateLastSeen();
+        destroy self.join->any(j | j.queues = q);
     end
-
-    pre playerIsInQueue: queues->size() = 1
-    pre playerIsOnline: status = #ONLINE
-    post leaveSuccessful: (queues->size() = 0) and
-        (queues@pre.players->excluding(self) = queues.players)
+    pre playerIsInQueue: queues->includes(q)
+    pre playerIsOnline: status = #ONLINE or status = #AWAY
+    post leaveSuccessful: queues@pre->excluding(q) = queues
 
     --! sendMsg doc
     --! @brief Sends a message in the specified chat
@@ -862,7 +1052,7 @@ operations
     --! @param Chat c The chat to send the message in
     --! @param String msg The message to be sent
     sendMsg(c: Chat, msg: String)
-    pre playerIsOnline: status = #ONLINE
+    pre playerIsOnline: status <> #OFFLINE
     pre argsAreValid: c <> null and msg.size() > 0
     post msgSent:
         let
@@ -878,7 +1068,7 @@ operations
     --! @param Player p The player to send the request to
     --! @param RequestType t The type of request to be sent
     sendReq(p: Player, t: RequestType)
-    pre playerIsOnline: status = #ONLINE
+    pre playerIsOnline: status <> #OFFLINE
     pre argsAreValid: p <> null and t <> null
     post reqSent:
         let
@@ -897,7 +1087,7 @@ operations
     --! @param Boolean action Boolean representing accepting (true) or
     --!                   rejecting (false) the request
     addressReq(req: Request, action: Boolean)
-    pre playerIsOnline: status = #ONLINE
+    pre playerIsOnline: status <> #OFFLINE
     pre argsAreValid: req <> null and action <> null
     pre reqIsPending: req.status = #PENDING
     post reqAddressed: (action and req.status = #ACCEPTED) or
@@ -915,6 +1105,7 @@ operations
             b: Block,
             d: DateTime,
             bList: Set(Player);
+        self.updateLastSeen();
 
         -- Check that blocked list doesn't have player
         bList := self.block[player]
@@ -928,51 +1119,32 @@ operations
         b := self.block[player]->any(b | b.blocked = p);
         b.block();
     end
-    pre: true -- self.status = #UNBLOCKED
-    post: true
-
-
-    pre playerIsOnline: status = #ONLINE
     pre argIsValid: p <> null
+    pre playerIsOnline: status <> #OFFLINE
     pre playerIsNotBlocked:
         let
             b = block[player]->any(b | b.blocked = p)
         in b = null or b.status = #UNBLOCKED
-    post noPost: true --playerBlocked: block[player]->exists(b |
-        --b.blocked = p and b.status = #BLOCKED and
-        --b.date.equalsNow())
+    post playerBlocked: block[player]->exists(b |
+        b.blocked = p and b.status = #BLOCKED and
+        b.date.equalsNow())
 
     --! unblockPlayer doc
     --! @brief Unblocks a player
     --!
     --! @param Player p The player to be unblocked
     unblockPlayer(p: Player)
-    --begin
-    --    b := block->any(b | b.blocked = p);
-    --    b.unblock();
-    --end
     begin
-        delete (p,self) from Block;
-        --declare d: Block;
-        --d := Block() between(p, self);
+        declare b: Block;
+        self.updateLastSeen();
+        b := self.block[player]->any(b | b.blocked = p);
+        b.unblock();
     end
-    pre playerExists: p <> null
-    post noPost: true
-
-
-
-    --post playerBlocked: block[player]->exists(b|
-    -- b.blocked->asSet() = Set{p} and b.status = #BLOCKED and
-    -- b.date.equalsNow())
-
-
-    pre playerIsOnline: status = #ONLINE
     pre argIsValid: p <> null
-    pre playerIsBlocked:
-        let
-            b = block[player]->any(b | b.blocked = p)
-        in b <> null and b.status = #BLOCKED
-    post playerUnblocked: block[player]->exists(b |
+    pre playerIsOnline: status <> #OFFLINE
+    pre playerBlocked: block[player]->exists(b |
+        b.blocked = p and b.status = #BLOCKED)
+    post playerUnblocked: block[player]->exists(b|
         b.blocked = p and b.status = #UNBLOCKED)
 
     --! reportBug doc
@@ -980,7 +1152,7 @@ operations
     --!
     --! @param String msg A description of the bug being reported
     reportBug(msg: String)
-    pre playerIsOnline: status = #ONLINE
+    pre playerIsOnline: status <> #OFFLINE
     pre argIsValid: msg.size() > 0
     post bugReported:
         let
@@ -995,7 +1167,7 @@ operations
     --! @param Player p The player to be reported
     --! @param String msg The reason for reporting the player
     reportPlayer(p: Player, msg: String)
-    pre playerIsOnline: status = #ONLINE
+    pre playerIsOnline: status <> #OFFLINE
     pre argIsValid: p <> null and msg.size() > 0
     post playerReported:
         let
@@ -1004,92 +1176,6 @@ operations
             claims@pre->union(newClaim) = claims and
             newClaim->one(c |
                 c.getDesc() = msg and Set{p} = c.reported->asSet())
-
-    --! openChat doc
-    --! @brief Opens the specified chat
-    --!
-    --! @param Chat c The chat to be opened
-    openChat(c: Chat)
-    pre playerIsOnline: status = #ONLINE
-    pre argIsValid: c <> null
-    pre noChatOpen: chatState
-        ->select(cs | cs.status = #OPEN)->size() = 0
-    post onlySpecifiedChatOpen: chatState
-        ->select(cs | cs.status = #OPEN).chatRooms->asSet() = Set{c}
-
-    --! closeChat doc
-    --! @brief Closes the currently opened chat
-    closeChat()
-    pre playerIsOnline: status = #ONLINE
-    pre chatOpen: chatState
-        ->select(cs | cs.status = #OPEN)->size() = 1
-    post chatProperlyClosed:
-        let
-            openedChat = chatState@pre
-                ->select(cs | cs.status = #OPEN).chatRooms->asSet()
-        in chatState->one(cs |
-            openedChat = cs.chatRooms->asSet() and
-            cs.status = #CLOSED and cs.lastOpened.equalsNow())
-
-    --! openMatch doc
-    --! @brief Opens the specified match
-    --!
-    --! @param Match m The match to be opened
-    openMatch(m: Match)
-    begin self.rack->any(r | r.matchHistory = m).matchOpen := true; end
-    pre matchClosed: rack->any(r | r.matchHistory = m).matchOpen = false
-    post matchOpened: rack->any(r | r.matchHistory = m).matchOpen = true
-
-    --! closeMatch doc
-    --! @brief Closes the specified match
-    --!
-    --! @param Match m The match to be opened
-    closeMatch(m: Match)
-    begin self.rack->any(r | r.matchHistory = m).matchOpen := false; end
-    pre matchOpened: rack->any(r | r.matchHistory = m).matchOpen = true
-    post matchClosed: rack->any(r | r.matchHistory = m).matchOpen = false
-
-    --! openApp doc
-    --! @brief Executes actions that should occur once the player opens the
-    --!        app or logs in
-    openApp()
-    begin self.status := #ONLINE; end
-    pre notOnline: status = #OFFLINE
-    post statusUpdated: status = #ONLINE
-
-    --! closeApp doc
-    --! @brief Executes actions that should occur once the player closes the
-    --!        app or logs out
-    closeApp()
-    begin self.status := #OFFLINE; end
-    pre isNotOffline: status <> #OFFLINE
-    post statusUpdated: status = #OFFLINE
-
-    -- #TODO Methods to set the status to away
-    --! initialise doc
-    --! @brief Initialises the player instance
-    --!
-    --! @param Type paramname Description
-    initialise(u: String, e: String, d: DateTime, l: Leaderboard)
-    begin
-        self.username := u;
-        self.email := e;
-        self.dob := d;
-        self.score := 500;
-        new Rank() between (l, self);
-    end
-
-    --check that username does not exist
-    pre noPre: true
-    post noPost: true
-
-    ---------------------------------Accessors--------------------------------
-
-    getUsername(): String = username
-    getEmail(): String = email
-    getScore(): Integer = score
-    getStatus(): PlayerStatus = status
-
 statemachines
     psm playerStates
     states
@@ -1105,19 +1191,20 @@ statemachines
         offline -> online {openApp()}
         offline -> banned
 
+        online -> online {updateLastSeen()}
         online -> offline {closeApp()}
-        online -> playing
-        online -> away
+        online -> playing {openMatch()}
+        online -> away {updateHelperClock()}
         online -> banned
 
-        away -> online
+        away -> online {updateLastSeen()}
         away -> offline {closeApp()}
-        away -> playing
+        away -> playing {openMatch()}
+        away -> away {updateHelperClock()}
         away -> banned
 
-        playing -> online
+        playing -> online {closeMatch()}
         playing -> offline {closeApp()}
-        playing -> away
         playing -> banned
     end
 end -- Player Class
@@ -1174,7 +1261,7 @@ operations
         insert (self, p) into Notify;
         insert (self, o) into Signal;
 
-        self.deliverytime = new DateTime();
+        self.deliverytime := new DateTime();
         insert (self.deliverytime, p.user.scrumble.clock.time)
             into CurrentTime;
         self.deliverytime.setToNow();
@@ -1215,16 +1302,6 @@ operations
     --! @brief gotoAndDismiss helper for report event notifications
     gotoReportHelper()
     -- #TODO Pre and Post
-
-    --! init doc
-    --! @brief Initializes the notification
-    --! @param DateTime d Date and time of notification
-    init(d: DateTime)
-    begin
-        self.deliverytime := d;
-        self.dismissed := false;
-    end
-
 statemachines
     psm notificationStates
     states
@@ -1311,17 +1388,27 @@ attributes
 operations
     --! setOpen doc
     --! @brief Sets the chat state to #OPEN
+    --!
+    --! view all unseen messages and set ChatStatus to OPEN
     setOpen()
-    -- view all unseen messages and set ChatStatus to OPEN
+    begin
+        self.status := #OPEN;
+        self.chatRooms.view(self.participants);
+    end
     pre notOpen: status = #CLOSED
     post openned: status = #OPEN
-    post latestMsgSeen: not chatRooms.messages->exists(m |
+    post latestMsgsSeen: not chatRooms.messages->exists(m |
         m.status = #UNSEEN and participants->excludes(m.msgSender))
 
     --! setClosed doc
     --! @brief Sets the chat state to #CLOSED
+    --!
+    --! set lastOpened date and set ChatStatus to CLOSED
     setClosed()
-    -- set lastOpened date and set ChatStatus to CLOSED
+    begin
+        self.status := #CLOSED;
+        self.lastOpened.setToNow();
+    end
     pre openned: status = #OPEN
     post closed: status = #CLOSED
     post lastOpenedSet: lastOpened.equalsNow()
@@ -1334,6 +1421,21 @@ attributes
     activePeriod: Period
     type: RequestType
 operations
+    --! init doc
+    --! @brief Initialises the request
+    --!
+    --! @param RequestType t The type of request being made
+    init(t: RequestType)
+    begin
+        self.sentDate := new DateTime();
+        insert (self.sentDate, self.reqSender.user.scrumble.clock.time)
+            into CurrentTime;
+        self.sentDate.setToNow();
+        self.type := t;
+    end
+    pre argIsValid: t <> null
+    post attributesSet: sentDate.equalsNow() and type = t
+
     --! accept doc
     --! @brief Mark the request as accepted
     accept()
@@ -1387,17 +1489,6 @@ operations
     pre isPending: status = #PENDING
     post statusUpdated: status = #LOST
     post notActivated: activePeriod = null
-
-
-    init(s: RequestStatus, sd: DateTime,ap: Period,t: RequestType)
-    begin
-        self.status := s;
-        self.sentDate := sd;
-        self.activePeriod := ap;
-        self.type := t;
-    end
-    pre noPre: true
-    post noPost: true
 statemachines
     psm requestStates
     states
@@ -1626,9 +1717,6 @@ operations
     end
 
     pre argsAreValid: p1 <> null and p2 <> null and p1 <> p2
-    post hasDuration: result.duration <> null
-    post isRanked: result.type = #RANKED
-    post isTimed: result.timed = true
     post consistentTilePointValues: result.tilePointsAreValid()
     post fixedNumberOfLettersInMatch: result.tileCountIsValid()
 
@@ -1650,9 +1738,6 @@ operations
     end
 
     pre argsAreValid: p1 <> null and p2 <> null and p1 <> p2
-    post hasDuration: result.duration <> null
-    post isRanked: result.type = #UNRANKED
-    post isTimed: result.timed = true
     post consistentTilePointValues: result.tilePointsAreValid()
     post fixedNumberOfLettersInMatch: result.tileCountIsValid()
 
@@ -1674,9 +1759,6 @@ operations
     end
 
     pre argsAreValid: p1 <> null and p2 <> null and p1 <> p2
-    post hasDuration: result.duration <> null
-    post isRanked: result.type = #UNRANKED
-    post isTimed: result.timed = false
     post consistentTilePointValues: result.tilePointsAreValid()
     post fixedNumberOfLettersInMatch: result.tileCountIsValid()
 end -- MatchBuilder Class
@@ -1705,6 +1787,20 @@ attributes
     matchType: MatchType
     timed: Boolean
 operations
+    --! init doc
+    --! @brief Initializes the queue
+    --!
+    --! @param Type <var> Description
+    init(mType: MatchType, t: Boolean)
+    begin
+        self.matchType := mType;
+        self.timed := t;
+    end
+
+    pre argsAreValid: mType <> null and t <> null
+    pre noUntimedRankedMatches: mType = #RANKED implies t
+    post attributesSet: (matchType = mType) and (timed = t)
+
     --! matchmaking doc
     --! @brief Triggers the creation of matches between players in the queue
     matchmaking()
@@ -1713,6 +1809,8 @@ operations
             m: Match,
             p1: Player,
             p2: Player,
+            p1Blocked: Set(Player),
+            p2Blocked: Set(Player),
             rankDiff: Integer,
             allPlayers: Sequence(Player);
 
@@ -1722,26 +1820,54 @@ operations
         for i in Sequence{1..allPlayers->size()} do
             for j in Sequence{(i+1)..allPlayers->size()} do
                 p1 := allPlayers->at(i);
-                destroy self.join->any(j | j.players = p1);
                 p2 := allPlayers->at(j);
-                destroy self.join->any(j | j.players = p2);
 
-                rankDiff := (p1.rank.placement - p2.rank.placement).abs();
-                if (self.matchType = #RANKED and rankDiff <= 100) or
-                    (self.matchType <> #RANKED and rankDiff <= 200)
-                then
-                    m := self.scrumble.mFactory.getMatch(p1, p2,
-                        self.matchType, self.timed);
-                    p1.update(self);
-                    p2.update(self);
+                p1Blocked := p1.block[player]
+                    ->select(b | b.status = #BLOCKED).blocked->asSet();
+                p2Blocked := p2.block[player]
+                    ->select(b | b.status = #BLOCKED).blocked->asSet();
+
+                if p1Blocked->excludes(p2) and p2Blocked->excludes(p1) then
+                    destroy self.join->any(j | j.players = p1);
+                    destroy self.join->any(j | j.players = p2);
+
+                    --rankDiff := (p1.rank.placement - p2.rank.placement).abs();
+                    -- #TODO, have ranks assigned upon initialisation of a
+                    -- player
+                    rankDiff := 100;
+                    Write('testing\n');
+                    if (self.matchType = #RANKED and rankDiff <= 100) or
+                        (self.matchType <> #RANKED and rankDiff <= 200)
+                    then
+                        Write('testing2\n');
+                        m := self.scrumble.mFactory.getMatch(p1, p2,
+                            self.matchType, self.timed);
+                        p1.update(self);
+                        p2.update(self);
+                    end;
                 end;
             end;
         end;
     end
 
-    pre playersInQueue: not players->isEmpty()
+    pre playersInQueue: players->size() >= 1
     --post: check that the queue is empty or the remaining players are
     -- unmatchable
+    post newMatchesValid:
+        scrumble.matches->select(m | m.oclIsNew() = true)->forAll(m |
+            let
+                p1 = m.players->any(true),
+                p2 = m.players->any(p | p <> p1),
+                p1Blocked = p1.block[player]
+                    ->select(b | b.status = #BLOCKED).blocked,
+                p2Blocked = p2.block[player]
+                    ->select(b | b.status = #BLOCKED).blocked,
+
+                rankDiff = (p1.rank.placement - p2.rank.placement).abs()
+            in p1Blocked->excludes(p2) and p2Blocked->excludes(p1) and
+                ((m.type = #RANKED and rankDiff <= 100) or
+                    (m.type <> #RANKED and rankDiff <= 200))
+        )
 end -- Queue Class
 
 associationclass Join
@@ -1752,20 +1878,19 @@ attributes
     joinedAt: DateTime
 operations
     --! init doc
-    --! @brief Initializes the Join instance and triggers the matchmaking
-    --!        method in the queue
+    --! @brief Initializes the Join instance
     init()
     begin
         self.joinedAt := new DateTime();
         insert (self.joinedAt, self.queues.scrumble.clock.time)
             into CurrentTime;
-        self.queues.matchmaking();
+        self.joinedAt.setToNow();
     end
 
     -- Not sure if checking that the roles aren't empty is a valid
     -- precondition
     pre noPre: true
-    post noPost:true
+    post attributesSet: joinedAt.equalsNow()
 end -- Join Association Class
 
 associationclass Rack
@@ -1790,8 +1915,10 @@ operations
     --! @brief starts the process of making a play
     triggerPlay(sRow: Integer, sCol: Integer, dir: PlayDirection,
     tileSeq: OrderedSet(Tile))
-    begin self.matchHistory.executePlay(self, sRow, sCol, dir, tileSeq); end
-    pre playerIsInGame: players.status = #PLAYING
+    begin
+        self.matchHistory.executePlay(self, sRow, sCol, dir, tileSeq);
+    end
+    pre playerIsInCurrentMatch: matchOpen = true
     pre argsAreValid: Set{sRow, sCol, dir}->excludes(null) and
         tileSeq->size() > 0 and tiles->includesAll(tileSeq)
     post tilesRemoved: tiles->excludesAll(tileSeq)
@@ -1802,8 +1929,10 @@ operations
     --!
     --! @brief Starts the process of passing a turn
     triggerPass()
-    begin self.matchHistory.executePass(self); end
-    pre playerIsInGame: players.status = #PLAYING
+    begin
+        self.matchHistory.executePass(self);
+    end
+    pre playerIsInCurrentMatch: matchOpen = true
     post noPost: true
 
     --! triggerQuit doc
@@ -1812,9 +1941,11 @@ operations
     --!
     --! @brief Starts the process of forfeiting the game
     triggerQuit()
-    begin self.matchHistory.executeQuit(self); end
-    pre playerIsInGame: players.status = #PLAYING
-    post: true
+    begin
+        self.matchHistory.executeQuit(self);
+    end
+    pre playerIsInCurrentMatch: matchOpen = true
+    post noPost: true
 end -- Rack Association Class
 
 class Play < Identifiable
@@ -2120,7 +2251,7 @@ operations
     pre linkedToScrumble: scrumble <> null
     post isInitialised: type = matchType and timed = matchTimed and
         category = cat and status = #INPROGRESS and score = 0 and
-        duration.getStart().equalsNow()
+        duration.getStart().equalsNow() and duration.isSelfValid()
 
     --! notify doc
     --! @brief Loops through all the observers and calls update for each of
@@ -2146,7 +2277,7 @@ operations
     end
 
     pre noPre: true
-    post noPost:true
+    post noPost: true
 
     --! update doc
     --! @brief This is the method called by the observable to update the
@@ -2438,6 +2569,7 @@ operations
         in lp.type = #QUIT and lp.time.equalsNow() and
             playHistory@pre->including(lp) = playHistory and
             lp.oclIsNew() and lp.tiles->size() = 0
+    post abandoned: status = #ABANDONED
 
     --! executePlay doc
     --! @brief Places the tiles on the board
@@ -2775,7 +2907,7 @@ operations
     end
 
     pre noPre: true
-    post noPost:true
+    post noPost: true
 
     --! updateHelperMatch doc
     --! @brief Updates the players' ranks once a ranked match is complete
@@ -2861,7 +2993,7 @@ operations
     end
 
     pre matchFinished: o.status <> #INPROGRESS
-    post noPost:true
+    post noPost: true
 end -- Leaderboard Class
 
 associationclass Rank
@@ -2951,10 +3083,10 @@ association ScrumbleMatchFactory between
     MatchFactory[1] role mFactory
 end -- ScrumbleMatchFactory Association
 
-association ScrumbleQueue between
+association ScrumbleQueues between
     Scrumble[1]
-    Queue[1]
-end -- ScrumbleQueue Association
+    Queue[*] role queues
+end -- ScrumbleQueues Association
 
 --------------------------------------ACL-------------------------------------
 
@@ -3111,6 +3243,15 @@ context Scrumble
         ->isUnique(p | p.oclAsType(Player).username)
 
     inv currentTimeIsCorrect: clock.time.equals(clock.time.now)
+
+    -- There may only be one queue for each match type
+    inv oneQueuePerMatchType:
+        let
+            r = queues->any(q | q.matchType = #RANKED and q.timed = true),
+            urt = queues->any(q | q.matchType = #UNRANKED and q.timed = true),
+            urut = queues
+                ->any(q | q.matchType = #UNRANKED and q.timed = false)
+        in Set{r, urt, urut} = queues
 -- End Scrumble Constraints
 
 -------------------------------Abstract Classes-------------------------------
@@ -3194,6 +3335,14 @@ context Player
             not sentReqs->union(rcvdReqs)->exists(req |
                 Set{req.reqSender, req.reqRcvr}->includes(b.blocked) and
                 req.status = #PENDING))
+
+    -- 1. A player may only open one match at a time
+    -- 2. If a match is open the player's status must be set to #PLAYING
+    -- 3. If the player does not have any matches open then their status
+    --    cannot be #PLAYING
+    inv statusAndRackStatusConsistent:
+        (status = #PLAYING and rack->one(r | r.matchOpen = true)) or
+        (status <> #PLAYING and (not rack->exists(r | r.matchOpen = true)))
 
     -- Players must not encounter players they have blocked in any match
     inv noMatchesWithBlockedPlayers:
