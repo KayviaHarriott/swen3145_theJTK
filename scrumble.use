@@ -115,6 +115,7 @@ operations
     --!
     --! @param Observable o The observable that called the method
     update(o: Observable)
+    --is this to update id? 
     -- #TODO Pre and Post
     pre argIsValid: o <> null
     post noPost: true
@@ -694,8 +695,15 @@ operations
     --!
     --! @param Letter w Sequence of letters that make up the word
     --! @param Category cat Category of word added
-    addWord(w: Sequence(Letter), cat: Category)
-    --add to dictionary
+    addWord(w: Sequence(Letter), cat: Category, dict: Dictionary)
+    begin
+        declare word: Word, k: ValidWord;
+        --word := w
+        word.category := cat;
+        --k :=  new ValidWord between (w, dict);
+        --new Rank (p.user.id + 'Rank') between (self, p);
+        --self.refresh();
+    end
     -- #TODO Pre and Post
 
     --! depricatedWord doc
@@ -705,6 +713,11 @@ operations
     --! @return type
     --! @throws conditon
     deprecateWord(w: Word)
+    begin
+        w.status := #DEPRECATED;
+    end
+    pre wordExists: w <> null --should be check in dictionary?
+    post : w.status = #DEPRECATED;
     -- #TODO Pre and Post
 
     --! banPlayer doc
