@@ -678,7 +678,7 @@ operations
         w.status := #DEPRECATED;
     end
     pre wordExists: w <> null --should be check in dictionary?
-    post : w.status = #DEPRECATED;
+    post checkWordStatus: w.status = #DEPRECATED;
     -- #TODO Pre and Post
 
     --! banPlayer doc
