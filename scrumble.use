@@ -702,7 +702,7 @@ operations
         p.status := #BANNED;
     end
     pre playerExists: p <> null
-    post playerNotAlreadyBanned: p.status = #BANNED;
+    post playerBanned: p.status = #BANNED;
     -- #TODO Pre and Post
 end -- Admin Class
 
