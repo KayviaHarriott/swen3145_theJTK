@@ -701,9 +701,8 @@ operations
     begin
         p.status := #BANNED;
     end
-    pre : p <> null
-    post : p.status = #BANNED;
-    -- Sets their status to banned
+    pre playerExists: p <> null
+    post playerNotAlreadyBanned: p.status = #BANNED;
     -- #TODO Pre and Post
 end -- Admin Class
 
