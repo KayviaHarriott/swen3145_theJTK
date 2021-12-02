@@ -926,6 +926,9 @@ operations
     getScore(): Integer = score
     getStatus(): PlayerStatus = status
 
+    --getBlockedList(): 
+    --getFriendList():
+
     ---------------------------------Mutators---------------------------------
 
     updateLastSeen()
@@ -959,6 +962,18 @@ operations
     end  
     pre argIsValid: s <> null
     post stateUpdated: self.state = s
+
+    --! changePlayerStatus doc
+    --! @brief Changes player status
+    --! @param PlayerStatus s The player status to be changed to
+    changePlayerStatus(s : PlayerStatus)
+    begin
+        if ((s <> #PLAYING) or (s <> #BANNED)) then
+            self.status := s;
+        end;
+    end  
+    pre argIsValid: s <> null
+    post stateUpdated: self.status = s
 
     --! openApp doc
     --! @brief Executes actions that should occur once the player opens the
