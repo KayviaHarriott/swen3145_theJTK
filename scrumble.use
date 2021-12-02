@@ -751,6 +751,7 @@ attributes
     score: Integer init: 500
     status: PlayerStatus init: #OFFLINE
     state: ProfileState init: #PRIVATE
+    bio: String init: 'Ready to Scrumble!' 
 operations
     --! initialise doc
     --! @brief Initializes the player
@@ -938,6 +939,16 @@ operations
     post lastSeenUpdated: lastSeen.equalsNow()
 
     --------------------------------Operations--------------------------------
+
+    --! changePlayerBio doc
+    --! @brief Changes player profile bio
+    --! @param String s The new bio for the player
+    changePlayerBio(s : String)
+    begin
+        self.bio := s;
+    end  
+    pre argIsValid: s <> null
+    post bioUpdated: self.bio = s
 
     --! changeProfileState doc
     --! @brief Changes player profile state
