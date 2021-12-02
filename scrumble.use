@@ -681,6 +681,18 @@ operations
     post checkWordStatus: w.status = #DEPRECATED;
     -- #TODO Pre and Post
 
+    --! changeCategory doc
+    --! @brief Changes a word category
+    --!
+    --! @param Word w The word for category to be changed
+    changeCategory(w: Word, c: Category)
+    begin
+        w.category := c;
+    end
+    pre wordExists: w <> null 
+    post checkWordCategory: w.category = c;
+
+
     --! banPlayer doc
     --! @brief Bans a player
     --!
