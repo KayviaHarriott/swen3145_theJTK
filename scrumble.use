@@ -927,6 +927,16 @@ operations
 
     --------------------------------Operations--------------------------------
 
+    --! changeProfileState doc
+    --! @brief Changes player profile state
+    --! @param ProfileState s The state to change the profile to
+    changeProfileState(s : ProfileState)
+    begin
+        self.state := s;
+    end  
+    pre playerExists: self <> null
+    post stateUpdated: self.state = s
+
     --! openApp doc
     --! @brief Executes actions that should occur once the player opens the
     --!        app or logs in
