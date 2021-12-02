@@ -2457,21 +2457,23 @@ operations
     begin
         declare d: DateTime;
 
-        self.status := self.calcStatus();
-        self.score := self.calcSlider();
+        if self.status = #INPROGRESS then
+            self.status := self.calcStatus();
+            self.score := self.calcSlider();
 
-        if self.status <> #INPROGRESS then
-            d := new DateTime();
-            insert (d, self.scrumble.clock.time) into CurrentTime;
-            d.setToNow();
-            self.duration.addEnd(d);
+            if self.status <> #INPROGRESS then
+                d := new DateTime();
+                insert (d, self.scrumble.clock.time) into CurrentTime;
+                d.setToNow();
+                self.duration.addEnd(d);
 
-            for Obsrvr in self.observer do
-                if (Obsrvr.oclIsTypeOf(Leaderboard) = true) then
-                    Obsrvr.oclAsType(Leaderboard).update(self);
-                else if (Obsrvr.oclIsTypeOf(Player) = true) then
-                    Obsrvr.oclAsType(Player).update(self);
-                end; end;
+                for Obsrvr in self.observer do
+                    if (Obsrvr.oclIsTypeOf(Leaderboard) = true) then
+                        Obsrvr.oclAsType(Leaderboard).update(self);
+                    else if (Obsrvr.oclIsTypeOf(Player) = true) then
+                        Obsrvr.oclAsType(Player).update(self);
+                    end; end;
+                end;
             end;
         end;
     end
