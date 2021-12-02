@@ -2417,11 +2417,17 @@ operations
     --!        them
     notify()
     begin
-        if not (self.status = self.calcStatus() and
-            self.score = self.calcSlider())
-        then
-            self.status := self.calcStatus();
-            self.score := self.calcSlider();
+        declare nextStatus: MatchStatus, nextScore: Integer;
+
+        nextStatus := self.calcStatus();
+        nextScore := self.calcSlider();
+        if not (self.status = nextStatus and self.score = nextScore) then
+            self.status := nextStatus;
+            self.score := nextScore;
+
+            if self.status <> #INPROGRESS then
+                self.duration.addEnd(self.playHistory->last().time);
+            end;
 
             for o in self.observer do
                 if (o.oclIsTypeOf(Leaderboard) = true) then
@@ -3947,19 +3953,14 @@ context Match
     -- Ensures that the end date for a match corresponds with the final play
     -- if the match is finished or that there is no end date if the match is
     -- still going
-    inv matchEndValid:
-        let
-            lp = playHistory->last(),
-            dur = duration.duration()
-        in (Set{#COMPLETE, #ABANDONED}->excludes(status) and
-                duration.getEnd() = null) or
-            (duration.getEnd() = lp.time and
-                ((status = #ABANDONED and lp.type = #QUIT) or
-                (status = #COMPLETE and
-                    (score.abs() >= 100 or
-                    (timed and dur > 0 and dur < 300))) --5 min
-                )
-            )
+    inv matchEndValid: status <> #INPROGRESS implies
+        (playHistory->last().time.equals(duration.getEnd())
+            and
+        ((timed = true and duration.duration() <= 300) or -- 5 min
+        ((timed = false and duration.durationInDays() <= 30)))
+            and
+        ((status = #ABANDONED and playHistory->last().type = #QUIT) or
+        (status <> #ABANDONED and playHistory->last().type <> #QUIT)))
 
     -- Checks that no matches last longer than 30 days
     inv untimedMatchesHaveValidDurations:
