@@ -926,8 +926,8 @@ operations
     getScore(): Integer = score
     getStatus(): PlayerStatus = status
 
-    --getBlockedList(): 
-    --getFriendList():
+    getBlockedList(): Set(Player) = self.blocked 
+    getFriendList(): Set(Player) = self.friends 
 
     ---------------------------------Mutators---------------------------------
 
