@@ -665,6 +665,7 @@ operations
         --new Rank (p.user.id + 'Rank') between (self, p);
         --self.refresh();
     end
+    --check if category exists
     -- #TODO Pre and Post
 
     --! depricatedWord doc
@@ -702,7 +703,7 @@ operations
         p.status := #BANNED;
     end
     pre playerExists: p <> null
-    post playerBanned: p.status = #BANNED;
+    post playerBanned: p.status = #BANNED
     -- #TODO Pre and Post
 end -- Admin Class
 
@@ -1223,6 +1224,26 @@ operations
         b.blocked = p and b.status = #BLOCKED)
     post playerUnblocked: block[player]->exists(b|
         b.blocked = p and b.status = #UNBLOCKED)
+
+
+    --! unfriendPlayer doc
+    --! @brief Unfriends a player that is friends with a user
+    --!
+    --! @param Player p The player to be unfriended
+    unfriendPlayer(p: Player)
+    begin
+        if (self.friends -> includes(p) = true) then
+            delete (self,p) from FriendList
+        end;
+        if (p.friends -> includes(self) = true) then
+            delete (p,self) from FriendList
+        end;
+    end
+    pre playerExists: p <> null
+    pre friendExists: self.friends -> includes(p) = true
+    post notFriend: friends@pre->excluding(p) = friends 
+    
+
 
     --! reportBug doc
     --! @brief Creates a bug report
