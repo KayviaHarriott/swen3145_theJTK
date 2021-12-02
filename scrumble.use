@@ -678,8 +678,20 @@ operations
         w.status := #DEPRECATED;
     end
     pre wordExists: w <> null --should be check in dictionary?
-    post : w.status = #DEPRECATED;
+    post checkWordStatus: w.status = #DEPRECATED;
     -- #TODO Pre and Post
+
+    --! changeCategory doc
+    --! @brief Changes a word category
+    --!
+    --! @param Word w The word for category to be changed
+    changeCategory(w: Word, c: Category)
+    begin
+        w.category := c;
+    end
+    pre wordExists: w <> null 
+    post checkWordCategory: w.category = c
+
 
     --! banPlayer doc
     --! @brief Bans a player
@@ -689,9 +701,8 @@ operations
     begin
         p.status := #BANNED;
     end
-    pre : p <> null
-    post : p.status = #BANNED;
-    -- Sets their status to banned
+    pre playerExists: p <> null
+    post playerBanned: p.status = #BANNED;
     -- #TODO Pre and Post
 end -- Admin Class
 
@@ -926,6 +937,16 @@ operations
     post lastSeenUpdated: lastSeen.equalsNow()
 
     --------------------------------Operations--------------------------------
+
+    --! changeProfileState doc
+    --! @brief Changes player profile state
+    --! @param ProfileState s The state to change the profile to
+    changeProfileState(s : ProfileState)
+    begin
+        self.state := s;
+    end  
+    pre argIsValid: s <> null
+    post stateUpdated: self.state = s
 
     --! openApp doc
     --! @brief Executes actions that should occur once the player opens the
