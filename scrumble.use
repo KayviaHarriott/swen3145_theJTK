@@ -690,7 +690,7 @@ operations
         w.category := c;
     end
     pre wordExists: w <> null 
-    post checkWordCategory: w.category = c;
+    post checkWordCategory: w.category = c
 
 
     --! banPlayer doc
