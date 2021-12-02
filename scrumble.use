@@ -934,7 +934,7 @@ operations
     begin
         self.state := s;
     end  
-    pre playerExists: self <> null
+    pre argIsValid: s <> null
     post stateUpdated: self.state = s
 
     --! openApp doc
